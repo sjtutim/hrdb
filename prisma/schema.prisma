@@ -1,0 +1,255 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户模型
+model User {
+  id             String          @id @default(uuid())
+  name           String
+  email          String          @unique
+  password       String?
+  role           UserRole        @default(RECRUITER)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  candidates     Candidate[]     // 招聘人员关联的候选人
+  jobPostings    JobPosting[]    // 创建的岗位
+  interviews     Interview[]     // 进行的面试
+  evaluations    Evaluation[]    // 提交的评估
+}
+
+enum UserRole {
+  ADMIN          // 管理员
+  HR             // 人力资源
+  RECRUITER      // 招聘人员
+  MANAGER        // 部门主管
+}
+
+// 候选人模型
+model Candidate {
+  id                String          @id @default(uuid())
+  name              String
+  email             String          @unique
+  phone             String?
+  education         String?
+  workExperience    Int?            // 工作年限
+  currentPosition   String?
+  currentCompany    String?
+  resumeUrl         String?         // 简历文件URL
+  resumeContent     String?         @db.Text // 简历内容（Markdown格式）
+  initialScore      Float?          // 初始评分
+  totalScore        Float?          // 总评分
+  status            CandidateStatus @default(NEW)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  recruiterId       String?         // 关联的招聘人员
+  recruiter         User?           @relation(fields: [recruiterId], references: [id])
+  tags              Tag[]           // 关联的标签
+  jobMatches        JobMatch[]      // 岗位匹配记录
+  interviews        Interview[]     // 面试记录
+  evaluations       Evaluation[]    // 评估记录
+  employeeRecord    Employee?       // 如果成为员工，关联的员工记录
+}
+
+enum CandidateStatus {
+  NEW              // 新建档案
+  SCREENING        // 筛选中
+  INTERVIEWING     // 面试中
+  OFFERED          // 已发offer
+  ONBOARDING       // 入职中
+  PROBATION        // 试用期
+  EMPLOYED         // 已正式入职
+  REJECTED         // 已拒绝
+  ARCHIVED         // 已归档
+}
+
+// 标签模型
+model Tag {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  category    TagCategory // 标签类别
+  createdAt   DateTime    @default(now())
+  candidates  Candidate[] // 关联的候选人
+  jobPostings JobPosting[] // 关联的岗位
+}
+
+enum TagCategory {
+  SKILL       // 技能
+  INDUSTRY    // 行业
+  EDUCATION   // 教育
+  EXPERIENCE  // 经验
+  PERSONALITY // 性格特质
+  OTHER       // 其他
+}
+
+// 岗位模型
+model JobPosting {
+  id              String        @id @default(uuid())
+  title           String        // 职位名称
+  department      String        // 部门
+  description     String        @db.Text // 岗位描述
+  requirements    String        @db.Text // 岗位要求
+  status          JobStatus     @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  expiresAt       DateTime?     // 岗位有效期
+  creatorId       String        // 创建者ID
+  creator         User          @relation(fields: [creatorId], references: [id])
+  tags            Tag[]         // 岗位标签
+  jobMatches      JobMatch[]    // 候选人匹配记录
+}
+
+enum JobStatus {
+  DRAFT           // 草稿
+  ACTIVE          // 激活
+  PAUSED          // 暂停
+  FILLED          // 已招满
+  EXPIRED         // 已过期
+}
+
+// 候选人-岗位匹配模型
+model JobMatch {
+  id            String     @id @default(uuid())
+  candidateId   String
+  candidate     Candidate  @relation(fields: [candidateId], references: [id])
+  jobPostingId  String
+  jobPosting    JobPosting @relation(fields: [jobPostingId], references: [id])
+  matchScore    Float      // 匹配分数
+  aiEvaluation  String?    @db.Text // AI评估内容
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([candidateId, jobPostingId])
+}
+
+// 面试模型
+model Interview {
+  id            String         @id @default(uuid())
+  candidateId   String
+  candidate     Candidate      @relation(fields: [candidateId], references: [id])
+  interviewerId String
+  interviewer   User           @relation(fields: [interviewerId], references: [id])
+  type          InterviewType
+  scheduledAt   DateTime
+  completedAt   DateTime?
+  notes         String?        @db.Text // 面试记录
+  score         Float?         // 面试评分
+  status        InterviewStatus @default(SCHEDULED)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+enum InterviewType {
+  PHONE         // 电话面试
+  TECHNICAL     // 技术面试
+  HR            // HR面试
+  MANAGER       // 主管面试
+  PERSONALITY   // 性格测试
+}
+
+enum InterviewStatus {
+  SCHEDULED     // 已安排
+  COMPLETED     // 已完成
+  CANCELLED     // 已取消
+  RESCHEDULED   // 已重新安排
+}
+
+// 评估模型
+model Evaluation {
+  id            String           @id @default(uuid())
+  candidateId   String
+  candidate     Candidate        @relation(fields: [candidateId], references: [id])
+  evaluatorId   String
+  evaluator     User             @relation(fields: [evaluatorId], references: [id])
+  type          EvaluationType
+  score         Float
+  comments      String?          @db.Text
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+enum EvaluationType {
+  RESUME        // 简历评估
+  INTERVIEW     // 面试评估
+  PROBATION     // 试用期评估
+  PERFORMANCE   // 绩效评估
+}
+
+// 员工模型（入职后）
+model Employee {
+  id            String     @id @default(uuid())
+  candidateId   String     @unique
+  candidate     Candidate  @relation(fields: [candidateId], references: [id])
+  employeeId    String     @unique // 员工编号
+  department    String
+  position      String
+  hireDate      DateTime
+  probationEndDate DateTime
+  status        EmployeeStatus @default(PROBATION)
+  currentScore  Float      // 当前评分
+  projects      Project[]  // 参与的项目
+  rewards       Reward[]   // 奖励记录
+  penalties     Penalty[]  // 惩罚记录
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+enum EmployeeStatus {
+  PROBATION     // 试用期
+  REGULAR       // 正式员工
+  RESIGNED      // 已离职
+  TERMINATED    // 已解雇
+}
+
+// 项目模型
+model Project {
+  id            String     @id @default(uuid())
+  name          String
+  description   String?    @db.Text
+  startDate     DateTime
+  endDate       DateTime?
+  status        ProjectStatus @default(ONGOING)
+  employees     Employee[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+enum ProjectStatus {
+  PLANNING      // 规划中
+  ONGOING       // 进行中
+  COMPLETED     // 已完成
+  CANCELLED     // 已取消
+}
+
+// 奖励模型
+model Reward {
+  id            String     @id @default(uuid())
+  employeeId    String
+  employee      Employee   @relation(fields: [employeeId], references: [id])
+  type          String
+  description   String
+  points        Float      // 加分
+  date          DateTime
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+// 惩罚模型
+model Penalty {
+  id            String     @id @default(uuid())
+  employeeId    String
+  employee      Employee   @relation(fields: [employeeId], references: [id])
+  type          String
+  description   String
+  points        Float      // 减分
+  date          DateTime
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
