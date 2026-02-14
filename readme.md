@@ -1,5 +1,5 @@
 以下是上述内容的markdown源代码：
-# 顿慧人才库（Dunwill HeroBase）功能
+# 公司人才库（Dunwill HeroBase）功能
 
 选用的技术栈：
 next.js
