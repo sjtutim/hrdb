@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
 
 const prisma = new PrismaClient();
 
@@ -28,8 +29,29 @@ export async function GET(request: NextRequest) {
 // 创建新岗位
 export async function POST(request: NextRequest) {
   try {
+    // 获取当前登录用户
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: '请先登录' },
+        { status: 401 }
+      );
+    }
+
+    // 根据邮箱查找用户
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: '用户不存在' },
+        { status: 401 }
+      );
+    }
+
     const data = await request.json();
-    
+
     // 验证必填字段
     if (!data.title || !data.department || !data.description || !data.requirements) {
       return NextResponse.json(
@@ -37,11 +59,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     // 提取标签IDs
     const tagIds = data.tagIds || [];
     delete data.tagIds;
-    
+
     // 创建岗位
     const jobPosting = await prisma.jobPosting.create({
       data: {
@@ -51,8 +73,7 @@ export async function POST(request: NextRequest) {
         requirements: data.requirements,
         status: data.status || 'DRAFT',
         expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
-        // 假设当前用户ID，实际应从会话中获取
-        creatorId: 'user-id-placeholder', // TODO: 从会话中获取真实用户ID
+        creatorId: user.id,
         // 关联标签
         tags: {
           connect: tagIds.map((id: string) => ({ id })),
@@ -62,7 +83,7 @@ export async function POST(request: NextRequest) {
         tags: true,
       },
     });
-    
+
     return NextResponse.json(jobPosting);
   } catch (error) {
     console.error('创建岗位错误:', error);

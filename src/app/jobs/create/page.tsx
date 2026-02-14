@@ -7,7 +7,32 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { 
+  Briefcase, 
+  Sparkles, 
+  ArrowLeft, 
+  Save,
+  Loader2,
+  Check,
+  AlertCircle,
+  Building2,
+  Calendar,
+  Tag,
+  FileText
+} from 'lucide-react';
 
+import { Button } from '@/app/components/ui/button';
+import { Input } from '@/app/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
+import { Badge } from '@/app/components/ui/badge';
+import { Textarea } from '@/app/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/app/components/ui/select';
 import {
   Form,
   FormControl,
@@ -17,31 +42,20 @@ import {
   FormLabel,
   FormMessage,
 } from '@/app/components/ui/form';
+import { Separator } from '@/app/components/ui/separator';
+import Link from 'next/link';
 
 // 定义表单验证模式
 const formSchema = z.object({
-  title: z.string().min(2, {
-    message: '职位名称至少需要2个字符',
-  }).max(100, {
-    message: '职位名称不能超过100个字符',
-  }),
-  department: z.string().min(2, {
-    message: '部门名称至少需要2个字符',
-  }).max(50, {
-    message: '部门名称不能超过50个字符',
-  }),
-  description: z.string().min(10, {
-    message: '岗位描述至少需要10个字符',
-  }),
-  requirements: z.string().min(10, {
-    message: '岗位要求至少需要10个字符',
-  }),
+  title: z.string().min(2, '职位名称至少需要2个字符').max(100, '职位名称不能超过100个字符'),
+  department: z.string().min(2, '部门名称至少需要2个字符').max(50, '部门名称不能超过50个字符'),
+  description: z.string().min(10, '岗位描述至少需要10个字符'),
+  requirements: z.string().min(10, '岗位要求至少需要10个字符'),
   status: z.enum(['DRAFT', 'ACTIVE', 'PAUSED']),
   expiresAt: z.string().optional(),
   tagIds: z.array(z.string()).optional(),
 });
 
-// 标签类型
 interface Tag {
   id: string;
   name: string;
@@ -61,7 +75,6 @@ export default function CreateJobPage() {
     requirements?: string;
   }>({});
 
-  // 初始化表单
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -70,42 +83,31 @@ export default function CreateJobPage() {
       description: '',
       requirements: '',
       status: 'DRAFT',
-      expiresAt: format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'), // 默认30天后过期
+      expiresAt: format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
       tagIds: [],
     },
   });
 
-  // 获取所有可用标签
   useEffect(() => {
     const fetchTags = async () => {
       try {
         const response = await fetch('/api/tags');
-        if (!response.ok) {
-          throw new Error('获取标签失败');
-        }
+        if (!response.ok) throw new Error('获取标签失败');
         const data = await response.json();
         setAvailableTags(data);
       } catch (err) {
         console.error('获取标签错误:', err);
-        setError('获取标签失败，请刷新页面重试');
       }
     };
-
     fetchTags();
   }, []);
 
-  // 处理标签选择
   const handleTagToggle = (tagId: string) => {
-    setSelectedTags((prev) => {
-      if (prev.includes(tagId)) {
-        return prev.filter((id) => id !== tagId);
-      } else {
-        return [...prev, tagId];
-      }
-    });
+    setSelectedTags((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
   };
 
-  // 处理AI生成建议
   const handleGenerateAiSuggestions = async () => {
     const title = form.getValues('title');
     const department = form.getValues('department');
@@ -121,34 +123,26 @@ export default function CreateJobPage() {
     try {
       const response = await fetch('/api/ai/job-suggestions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
           department,
-          selectedTags: selectedTags.map(id => 
-            availableTags.find(tag => tag.id === id)?.name
-          ).filter(Boolean),
+          selectedTags: selectedTags.map(id => availableTags.find(tag => tag.id === id)?.name).filter(Boolean),
         }),
       });
       
-      if (!response.ok) {
-        throw new Error('生成AI建议失败');
-      }
+      if (!response.ok) throw new Error('生成AI建议失败');
       
       const data = await response.json();
       setAiSuggestions(data);
       setShowAiSuggestions(true);
     } catch (err) {
-      console.error('生成AI建议错误:', err);
       setError(err instanceof Error ? err.message : '生成AI建议失败');
     } finally {
       setAiGenerating(false);
     }
   };
 
-  // 应用AI建议
   const applyAiSuggestion = (field: 'description' | 'requirements') => {
     if (aiSuggestions[field]) {
       form.setValue(field, aiSuggestions[field] || '');
@@ -156,326 +150,377 @@ export default function CreateJobPage() {
     }
   };
 
-  // 表单提交处理
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     setError(null);
     
     try {
-      // 添加标签IDs
       values.tagIds = selectedTags;
       
       const response = await fetch('/api/job-postings', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       });
       
-      if (!response.ok) {
-        throw new Error('创建岗位失败');
-      }
+      if (!response.ok) throw new Error('创建岗位失败');
       
-      const data = await response.json();
-      
-      // 跳转到岗位列表页
-      router.push('/job-postings');
+      router.push('/jobs');
     } catch (err) {
-      console.error('创建岗位错误:', err);
       setError(err instanceof Error ? err.message : '创建岗位失败');
     } finally {
       setLoading(false);
     }
   };
 
-  // 按类别分组标签
   const groupedTags = availableTags.reduce((acc, tag) => {
-    if (!acc[tag.category]) {
-      acc[tag.category] = [];
-    }
+    if (!acc[tag.category]) acc[tag.category] = [];
     acc[tag.category].push(tag);
     return acc;
   }, {} as Record<string, Tag[]>);
 
-  // 获取标签类别显示名称
-  const getCategoryDisplayName = (category: string) => {
-    const categoryMap: Record<string, string> = {
-      SKILL: '技能',
-      INDUSTRY: '行业',
-      EDUCATION: '教育',
-      EXPERIENCE: '经验',
-      PERSONALITY: '性格特质',
-      OTHER: '其他',
-    };
-    return categoryMap[category] || category;
+  const categoryMap: Record<string, string> = {
+    SKILL: '技能要求',
+    INDUSTRY: '行业经验',
+    EDUCATION: '教育背景',
+    EXPERIENCE: '工作经验',
+    PERSONALITY: '性格特质',
+    OTHER: '其他',
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">发布新职位</h1>
+    <div className="container py-8 max-w-4xl mx-auto">
+      {/* 页面头部 */}
+      <div className="flex items-center gap-4 mb-8">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/jobs">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">发布新职位</h1>
+          <p className="text-sm text-muted-foreground">创建新的职位发布，吸引优秀人才</p>
+        </div>
+      </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>职位名称</FormLabel>
-                    <FormControl>
-                      <input
-                        placeholder="例如：前端开发工程师"
-                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      请输入准确的职位名称，便于候选人搜索
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* 基本信息卡片 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Briefcase className="h-5 w-5 text-primary" />
+                基本信息
+              </CardTitle>
+              <CardDescription>填写职位的基本信息，便于候选人了解岗位</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>职位名称</FormLabel>
+                      <FormControl>
+                        <Input placeholder="例如：前端开发工程师" {...field} />
+                      </FormControl>
+                      <FormDescription>请输入准确的职位名称</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="department"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>所属部门</FormLabel>
-                    <FormControl>
-                      <input
-                        placeholder="例如：技术部"
-                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      请输入该职位所属的部门
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                <FormField
+                  control={form.control}
+                  name="department"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>所属部门</FormLabel>
+                      <FormControl>
+                        <Input placeholder="例如：技术部" {...field} />
+                      </FormControl>
+                      <FormDescription>选择或输入该职位所属的部门</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-            <div>
-              <h3 className="text-lg font-medium mb-2">职位标签</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                选择与该职位相关的标签，这将有助于系统更准确地匹配候选人
-              </p>
+              {/* 标签选择 */}
+              <div>
+                <FormLabel className="flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  职位标签
+                </FormLabel>
+                <p className="text-sm text-muted-foreground mb-4">
+                  选择与该职位相关的标签，有助于系统更准确地匹配候选人
+                </p>
 
-              {Object.entries(groupedTags).map(([category, tags]) => (
-                <div key={category} className="mb-4">
-                  <h4 className="text-md font-medium mb-2">
-                    {getCategoryDisplayName(category)}
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((tag) => (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        onClick={() => handleTagToggle(tag.id)}
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          selectedTags.includes(tag.id)
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                        }`}
-                      >
-                        {tag.name}
-                      </button>
-                    ))}
-                  </div>
+                <div className="space-y-4">
+                  {Object.entries(groupedTags).map(([category, tags]) => (
+                    <div key={category}>
+                      <h4 className="text-sm font-medium mb-2">{categoryMap[category] || category}</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {tags.map((tag) => (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            onClick={() => handleTagToggle(tag.id)}
+                            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                              selectedTags.includes(tag.id)
+                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                            }`}
+                          >
+                            {selectedTags.includes(tag.id) && (
+                              <Check className="h-3 w-3 inline mr-1" />
+                            )}
+                            {tag.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            </CardContent>
+          </Card>
 
-            <div className="flex justify-end">
-              <button
+          {/* AI 建议卡片 */}
+          <Card className="border-purple-200 bg-purple-50/30 dark:bg-purple-950/10">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+                AI 智能建议
+              </CardTitle>
+              <CardDescription>使用 AI 生成职位描述和要求，节省您的时间</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
                 type="button"
+                variant="outline"
                 onClick={handleGenerateAiSuggestions}
                 disabled={aiGenerating || !form.getValues('title') || !form.getValues('department')}
-                className={`px-4 py-2 rounded-md text-white ${
-                  aiGenerating || !form.getValues('title') || !form.getValues('department')
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-purple-600 hover:bg-purple-700'
-                }`}
+                className="w-full sm:w-auto"
               >
-                {aiGenerating ? '生成中...' : '使用AI生成职位描述'}
-              </button>
-            </div>
-
-            {showAiSuggestions && (
-              <div className="bg-purple-50 p-4 rounded-md border border-purple-200">
-                <h3 className="text-lg font-medium text-purple-800 mb-2">
-                  AI生成的建议
-                </h3>
-                {aiSuggestions.description && (
-                  <div className="mb-4">
-                    <h4 className="font-medium text-purple-700 mb-1">岗位描述建议</h4>
-                    <p className="text-sm text-gray-700 mb-2">
-                      {aiSuggestions.description}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => applyAiSuggestion('description')}
-                      className="text-sm text-purple-700 hover:text-purple-900"
-                    >
-                      应用此建议
-                    </button>
-                  </div>
+                {aiGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    生成职位描述建议
+                  </>
                 )}
-                {aiSuggestions.requirements && (
-                  <div>
-                    <h4 className="font-medium text-purple-700 mb-1">岗位要求建议</h4>
-                    <p className="text-sm text-gray-700 mb-2">
-                      {aiSuggestions.requirements}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => applyAiSuggestion('requirements')}
-                      className="text-sm text-purple-700 hover:text-purple-900"
-                    >
-                      应用此建议
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+              </Button>
 
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>岗位描述</FormLabel>
-                  <FormControl>
-                    <textarea
-                      placeholder="请详细描述该职位的工作内容、职责范围等信息..."
-                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      rows={6}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    详细描述该职位的工作内容、职责范围等信息
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+              {showAiSuggestions && (
+                <div className="mt-4 space-y-4">
+                  {aiSuggestions.description && (
+                    <div className="p-4 rounded-lg bg-white dark:bg-gray-900 border">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-sm">岗位描述建议</h4>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => applyAiSuggestion('description')}
+                        >
+                          应用
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground whitespace-pre-line">
+                        {aiSuggestions.description}
+                      </p>
+                    </div>
+                  )}
+                  {aiSuggestions.requirements && (
+                    <div className="p-4 rounded-lg bg-white dark:bg-gray-900 border">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-sm">岗位要求建议</h4>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => applyAiSuggestion('requirements')}
+                        >
+                          应用
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground whitespace-pre-line">
+                        {aiSuggestions.requirements}
+                      </p>
+                    </div>
+                  )}
+                </div>
               )}
-            />
+            </CardContent>
+          </Card>
 
-            <FormField
-              control={form.control}
-              name="requirements"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>岗位要求</FormLabel>
-                  <FormControl>
-                    <textarea
-                      placeholder="请详细描述该职位的技能要求、经验要求、学历要求等..."
-                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      rows={6}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    详细描述该职位的技能要求、经验要求、学历要求等
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* 职位详情卡片 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                职位详情
+              </CardTitle>
+              <CardDescription>详细描述职位的工作内容和要求</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
               <FormField
                 control={form.control}
-                name="status"
+                name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>状态</FormLabel>
+                    <FormLabel>岗位描述</FormLabel>
                     <FormControl>
-                      <select
-                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        {...field}
-                      >
-                        <option value="DRAFT">草稿</option>
-                        <option value="ACTIVE">激活</option>
-                        <option value="PAUSED">暂停</option>
-                      </select>
-                    </FormControl>
-                    <FormDescription>
-                      设置岗位状态，只有激活状态的岗位才会参与匹配
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="expiresAt"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>截止日期</FormLabel>
-                    <FormControl>
-                      <input
-                        type="date"
-                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      <Textarea
+                        placeholder="请详细描述该职位的工作内容、职责范围、团队介绍等信息..."
+                        className="min-h-[150px] resize-y"
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription>
-                      设置岗位的有效期，超过此日期岗位将自动过期
-                    </FormDescription>
+                    <FormDescription>详细的岗位描述有助于吸引合适的候选人</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
 
-            {error && (
-              <div className="p-3 bg-red-100 text-red-700 rounded-md">
-                {error}
+              <FormField
+                control={form.control}
+                name="requirements"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>岗位要求</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="请详细描述该职位的技能要求、经验要求、学历要求、加分项等..."
+                        className="min-h-[150px] resize-y"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>明确的要求有助于筛选合适的候选人</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          {/* 发布设置卡片 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                发布设置
+              </CardTitle>
+              <CardDescription>设置职位的状态和有效期</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>职位状态</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="选择状态" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="DRAFT">草稿（不对外发布）</SelectItem>
+                          <SelectItem value="ACTIVE">激活（开始招聘）</SelectItem>
+                          <SelectItem value="PAUSED">暂停（暂停招聘）</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>只有激活状态的职位才会参与人才匹配</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="expiresAt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>截止日期</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormDescription>超过截止日期后职位将自动过期</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-            )}
+            </CardContent>
+          </Card>
 
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={() => router.back()}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              >
-                取消
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className={`px-4 py-2 rounded-md text-white ${
-                  loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                {loading ? '提交中...' : '发布职位'}
-              </button>
+          {/* 错误提示 */}
+          {error && (
+            <div className="flex items-center gap-2 p-4 rounded-lg bg-destructive/10 text-destructive">
+              <AlertCircle className="h-5 w-5" />
+              <span>{error}</span>
             </div>
-          </form>
-        </Form>
-      </div>
+          )}
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">发布职位说明</h2>
-        <ul className="list-disc pl-5 space-y-2 text-gray-700">
-          <li>填写准确的职位名称和部门，便于候选人搜索和系统匹配</li>
-          <li>选择合适的标签，这将有助于系统更准确地匹配候选人</li>
-          <li>可以使用AI功能自动生成岗位描述和要求</li>
-          <li>详细描述岗位职责和要求，有助于吸引合适的候选人</li>
-          <li>设置合理的有效期，超过有效期的岗位将自动变为过期状态</li>
-          <li>草稿状态的岗位不会参与匹配，只有激活状态的岗位才会参与匹配</li>
-        </ul>
-      </div>
+          {/* 操作按钮 */}
+          <div className="flex items-center justify-between">
+            <Button variant="outline" type="button" asChild>
+              <Link href="/jobs">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                取消
+              </Link>
+            </Button>
+            <div className="flex gap-3">
+              <Button 
+                type="button" 
+                variant="outline"
+                onClick={() => {
+                  form.setValue('status', 'DRAFT');
+                  form.handleSubmit(onSubmit)();
+                }}
+                disabled={loading}
+              >
+                保存草稿
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    提交中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    发布职位
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </Form>
+
+      {/* 提示信息 */}
+      <Card className="mt-8 bg-muted/50">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-3">发布提示</h3>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li>• 详细的职位描述和准确的要求有助于吸引合适的候选人</li>
+            <li>• 选择合适的标签可以显著提高人才匹配的准确度</li>
+            <li>• 草稿状态的职位不会对外发布，也不会参与人才匹配</li>
+            <li>• 激活状态的职位会自动纳入人才匹配系统，为您推荐合适的候选人</li>
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 }

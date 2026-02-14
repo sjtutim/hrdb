@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
-import * as pdfParse from 'pdf-parse';
+import pdfParse from 'pdf-parse';
 
 const prisma = new PrismaClient();
 

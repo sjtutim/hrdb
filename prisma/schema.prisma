@@ -131,19 +131,33 @@ model JobMatch {
 
 // 面试模型
 model Interview {
-  id            String         @id @default(uuid())
+  id            String           @id @default(uuid())
   candidateId   String
-  candidate     Candidate      @relation(fields: [candidateId], references: [id])
+  candidate     Candidate        @relation(fields: [candidateId], references: [id])
   interviewerId String
-  interviewer   User           @relation(fields: [interviewerId], references: [id])
+  interviewer   User             @relation(fields: [interviewerId], references: [id])
   type          InterviewType
   scheduledAt   DateTime
   completedAt   DateTime?
-  notes         String?        @db.Text // 面试记录
-  score         Float?         // 面试评分
-  status        InterviewStatus @default(SCHEDULED)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  notes         String?          @db.Text // 面试记录
+  feedback      String?          @db.Text // 面试反馈
+  decision      String?          // 面试决定
+  status        InterviewStatus  @default(SCHEDULED)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  scores        InterviewScore[] // 评分记录
+}
+
+// 面试评分模型
+model InterviewScore {
+  id          String    @id @default(uuid())
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  category    String    // 评分类别
+  score       Float     // 分数
+  notes       String?   // 备注
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 enum InterviewType {
@@ -252,4 +266,12 @@ model Penalty {
   date          DateTime
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+}
+
+// 角色菜单权限模型
+model RolePermission {
+  id       String   @id @default(uuid())
+  role     UserRole
+  menuKey  String   // dashboard, candidates, interviews, jobs, matching, employees
+  @@unique([role, menuKey])
 }

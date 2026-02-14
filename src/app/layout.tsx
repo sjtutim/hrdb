@@ -1,5 +1,4 @@
 import './globals.css';
-import './output.css';
 import { AuthProvider } from './components/auth/AuthProvider';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import ConditionalFooter from './components/layout/ConditionalFooter';

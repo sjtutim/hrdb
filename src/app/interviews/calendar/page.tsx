@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Calendar, momentLocalizer, Views } from 'react-big-calendar';
+import { Calendar, momentLocalizer, Views, View } from 'react-big-calendar';
 import moment from 'moment';
 import 'moment/locale/zh-cn';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -177,7 +177,7 @@ export default function InterviewCalendarPage() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   const [interviewDetailsOpen, setInterviewDetailsOpen] = useState(false);
-  const [view, setView] = useState('week');
+  const [view, setView] = useState<View | 'year'>('week');
   const [date, setDate] = useState(new Date());
 
   // 处理选择面试事件
@@ -426,8 +426,8 @@ export default function InterviewCalendarPage() {
                 week: true,
                 month: true,
                 year: YearView
-              }}
-              view={view}
+              } as any}
+              view={view as View}
               onView={(newView) => setView(newView)}
               date={date}
               onNavigate={(newDate) => setDate(newDate)}
@@ -443,12 +443,11 @@ export default function InterviewCalendarPage() {
                 next: '下一页',
                 month: '月',
                 week: '周',
-                year: '年',
                 date: '日期',
                 time: '时间',
                 event: '事件',
                 noEventsInRange: '此时间段内没有面试安排',
-                showMore: (total) => `+${total}个更多`,
+                showMore: (total: number) => `+${total}个更多`,
               }}
             />
           </div>

@@ -2,6 +2,37 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { 
+  Search, 
+  Filter, 
+  Plus, 
+  MoreHorizontal, 
+  Mail, 
+  Phone,
+  Star,
+  ArrowUpDown,
+  Download,
+  User
+} from 'lucide-react';
+import { Button } from '@/app/components/ui/button';
+import { Input } from '@/app/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Badge } from '@/app/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/app/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/app/components/ui/select';
 
 interface Candidate {
   id: string;
@@ -13,6 +44,139 @@ interface Candidate {
   totalScore: number | null;
   status: string;
   tags: { id: string; name: string; category: string }[];
+  lastUpdated: string;
+}
+
+// 状态映射
+const statusMap: Record<string, { label: string; className: string }> = {
+  NEW: { label: '新建档案', className: 'status-new' },
+  SCREENING: { label: '筛选中', className: 'status-screening' },
+  INTERVIEWING: { label: '面试中', className: 'status-interviewing' },
+  OFFERED: { label: '已发offer', className: 'status-offered' },
+  ONBOARDING: { label: '入职中', className: 'status-onboarding' },
+  PROBATION: { label: '试用期', className: 'status-probation' },
+  EMPLOYED: { label: '已正式入职', className: 'status-employed' },
+  REJECTED: { label: '已拒绝', className: 'status-rejected' },
+  ARCHIVED: { label: '已归档', className: 'status-archived' },
+};
+
+// 评分显示组件
+function ScoreBadge({ score }: { score: number | null }) {
+  if (score === null) return <span className="text-muted-foreground text-sm">-</span>;
+  
+  let className = 'score-badge ';
+  if (score >= 80) className += 'score-high';
+  else if (score >= 60) className += 'score-medium';
+  else className += 'score-low';
+  
+  return (
+    <div className="flex items-center gap-1">
+      <Star className="h-3.5 w-3.5 fill-current" />
+      <span className={className}>{score.toFixed(1)}</span>
+    </div>
+  );
+}
+
+// 候选人表格行
+function CandidateRow({ candidate }: { candidate: Candidate }) {
+  const status = statusMap[candidate.status] || { label: candidate.status, className: 'bg-gray-100 text-gray-800' };
+  
+  return (
+    <tr className="group transition-colors hover:bg-muted/50">
+      <td className="px-4 py-4">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
+            {candidate.name.charAt(0)}
+          </div>
+          <div>
+            <p className="font-medium text-foreground">{candidate.name}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <Mail className="h-3 w-3 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">{candidate.email}</span>
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-4">
+        {candidate.currentPosition ? (
+          <div>
+            <p className="text-sm font-medium">{candidate.currentPosition}</p>
+            {candidate.currentCompany && (
+              <p className="text-xs text-muted-foreground">{candidate.currentCompany}</p>
+            )}
+          </div>
+        ) : (
+          <span className="text-sm text-muted-foreground">-</span>
+        )}
+      </td>
+      <td className="px-4 py-4">
+        <div className="flex flex-wrap gap-1">
+          {candidate.tags.slice(0, 3).map((tag) => (
+            <Badge key={tag.id} variant="secondary" className="text-xs">
+              {tag.name}
+            </Badge>
+          ))}
+          {candidate.tags.length > 3 && (
+            <Badge variant="outline" className="text-xs">
+              +{candidate.tags.length - 3}
+            </Badge>
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-4">
+        <ScoreBadge score={candidate.totalScore} />
+      </td>
+      <td className="px-4 py-4">
+        <span className={`status-badge ${status.className}`}>
+          {status.label}
+        </span>
+      </td>
+      <td className="px-4 py-4">
+        <span className="text-sm text-muted-foreground">
+          {new Date(candidate.lastUpdated).toLocaleDateString('zh-CN')}
+        </span>
+      </td>
+      <td className="px-4 py-4 text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>操作</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href={`/candidates/${candidate.id}`}>查看详情</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/candidates/${candidate.id}/edit`}>编辑</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/interviews/create?candidateId=${candidate.id}`}>安排面试</Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive">
+              删除
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </td>
+    </tr>
+  );
+}
+
+// 加载骨架屏
+function CandidateSkeleton() {
+  return (
+    <tr>
+      {[...Array(7)].map((_, i) => (
+        <td key={i} className="px-4 py-4">
+          <div className="skeleton h-4 w-full" />
+        </td>
+      ))}
+    </tr>
+  );
 }
 
 export default function CandidatesPage() {
@@ -21,6 +185,7 @@ export default function CandidatesPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'score' | 'date'>('date');
 
   useEffect(() => {
     const fetchCandidates = async () => {
@@ -30,7 +195,12 @@ export default function CandidatesPage() {
           throw new Error('获取候选人列表失败');
         }
         const data = await response.json();
-        setCandidates(data);
+        // 添加模拟的最后更新时间
+        const dataWithDate = data.map((c: Candidate) => ({
+          ...c,
+          lastUpdated: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+        }));
+        setCandidates(dataWithDate);
       } catch (err) {
         console.error('获取候选人列表错误:', err);
         setError(err instanceof Error ? err.message : '获取候选人列表失败');
@@ -42,229 +212,185 @@ export default function CandidatesPage() {
     fetchCandidates();
   }, []);
 
-  // 过滤候选人
-  const filteredCandidates = candidates.filter((candidate) => {
-    // 状态过滤
-    if (statusFilter !== 'ALL' && candidate.status !== statusFilter) {
-      return false;
-    }
-    
-    // 搜索过滤
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        candidate.name.toLowerCase().includes(searchLower) ||
-        candidate.email.toLowerCase().includes(searchLower) ||
-        (candidate.currentPosition && candidate.currentPosition.toLowerCase().includes(searchLower)) ||
-        (candidate.currentCompany && candidate.currentCompany.toLowerCase().includes(searchLower)) ||
-        candidate.tags.some(tag => tag.name.toLowerCase().includes(searchLower))
-      );
-    }
-    
-    return true;
-  });
+  // 过滤和排序候选人
+  const filteredCandidates = candidates
+    .filter((candidate) => {
+      if (statusFilter !== 'ALL' && candidate.status !== statusFilter) {
+        return false;
+      }
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          candidate.name.toLowerCase().includes(searchLower) ||
+          candidate.email.toLowerCase().includes(searchLower) ||
+          (candidate.currentPosition && candidate.currentPosition.toLowerCase().includes(searchLower)) ||
+          (candidate.currentCompany && candidate.currentCompany.toLowerCase().includes(searchLower)) ||
+          candidate.tags.some(tag => tag.name.toLowerCase().includes(searchLower))
+        );
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'score':
+          return (b.totalScore || 0) - (a.totalScore || 0);
+        case 'date':
+          return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime();
+        case 'name':
+        default:
+          return a.name.localeCompare(b.name);
+      }
+    });
 
-  // 获取状态显示名称
-  const getStatusDisplayName = (status: string) => {
-    const statusMap: Record<string, string> = {
-      NEW: '新建档案',
-      SCREENING: '筛选中',
-      INTERVIEWING: '面试中',
-      OFFERED: '已发offer',
-      ONBOARDING: '入职中',
-      PROBATION: '试用期',
-      EMPLOYED: '已正式入职',
-      REJECTED: '已拒绝',
-      ARCHIVED: '已归档',
-    };
-    return statusMap[status] || status;
-  };
-
-  // 获取状态标签颜色
-  const getStatusColor = (status: string) => {
-    const colorMap: Record<string, string> = {
-      NEW: 'bg-blue-100 text-blue-800',
-      SCREENING: 'bg-purple-100 text-purple-800',
-      INTERVIEWING: 'bg-yellow-100 text-yellow-800',
-      OFFERED: 'bg-green-100 text-green-800',
-      ONBOARDING: 'bg-teal-100 text-teal-800',
-      PROBATION: 'bg-cyan-100 text-cyan-800',
-      EMPLOYED: 'bg-green-100 text-green-800',
-      REJECTED: 'bg-red-100 text-red-800',
-      ARCHIVED: 'bg-gray-100 text-gray-800',
-    };
-    return colorMap[status] || 'bg-gray-100 text-gray-800';
-  };
+  // 统计各状态人数
+  const statusCounts = candidates.reduce((acc, c) => {
+    acc[c.status] = (acc[c.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">候选人档案</h1>
-        <Link href="/resume-upload" className="btn-primary">
-          添加候选人
-        </Link>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div className="w-full md:w-1/3">
-            <input
-              type="text"
-              placeholder="搜索候选人姓名、邮箱、职位、公司或标签..."
-              className="form-input"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          
-          <div className="w-full md:w-1/3">
-            <select
-              className="form-input"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="ALL">所有状态</option>
-              <option value="NEW">新建档案</option>
-              <option value="SCREENING">筛选中</option>
-              <option value="INTERVIEWING">面试中</option>
-              <option value="OFFERED">已发offer</option>
-              <option value="ONBOARDING">入职中</option>
-              <option value="PROBATION">试用期</option>
-              <option value="EMPLOYED">已正式入职</option>
-              <option value="REJECTED">已拒绝</option>
-              <option value="ARCHIVED">已归档</option>
-            </select>
-          </div>
+    <div className="container py-8 space-y-6">
+      {/* 页面头部 */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">候选人档案</h1>
+          <p className="text-muted-foreground mt-1">
+            共 {candidates.length} 位候选人，管理您的人才库
+          </p>
         </div>
-
-        {loading ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500">加载中...</p>
-          </div>
-        ) : error ? (
-          <div className="text-center py-8">
-            <p className="text-red-500">{error}</p>
-          </div>
-        ) : filteredCandidates.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500">暂无候选人数据</p>
-            <Link href="/resume-upload" className="btn-primary inline-block mt-4">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm">
+            <Download className="h-4 w-4 mr-2" />
+            导出
+          </Button>
+          <Button size="sm" asChild>
+            <Link href="/resume-upload">
+              <Plus className="h-4 w-4 mr-2" />
               添加候选人
             </Link>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    候选人
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    当前职位
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    标签
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    评分
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    状态
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    操作
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredCandidates.map((candidate) => (
-                  <tr key={candidate.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {candidate.name}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {candidate.email}
-                          </div>
-                          {candidate.phone && (
-                            <div className="text-sm text-gray-500">
-                              {candidate.phone}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {candidate.currentPosition && (
-                        <div className="text-sm text-gray-900">
-                          {candidate.currentPosition}
-                        </div>
-                      )}
-                      {candidate.currentCompany && (
-                        <div className="text-sm text-gray-500">
-                          {candidate.currentCompany}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {candidate.tags.slice(0, 3).map((tag) => (
-                          <span
-                            key={tag.id}
-                            className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800"
-                          >
-                            {tag.name}
-                          </span>
-                        ))}
-                        {candidate.tags.length > 3 && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
-                            +{candidate.tags.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {candidate.totalScore !== null ? (
-                        <div className="text-sm font-medium text-gray-900">
-                          {candidate.totalScore.toFixed(1)}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-500">暂无评分</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 text-xs rounded-full ${getStatusColor(
-                          candidate.status
-                        )}`}
-                      >
-                        {getStatusDisplayName(candidate.status)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        href={`/candidates/${candidate.id}`}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                      >
-                        查看
-                      </Link>
-                      <Link
-                        href={`/candidates/${candidate.id}/edit`}
-                        className="text-green-600 hover:text-green-900"
-                      >
-                        编辑
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          </Button>
+        </div>
       </div>
+
+      {/* 状态快速筛选 */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={statusFilter === 'ALL' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setStatusFilter('ALL')}
+        >
+          全部 ({candidates.length})
+        </Button>
+        {Object.entries(statusMap).map(([key, { label }]) => (
+          <Button
+            key={key}
+            variant={statusFilter === key ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter(key)}
+          >
+            {label} ({statusCounts[key] || 0})
+          </Button>
+        ))}
+      </div>
+
+      {/* 筛选和搜索工具栏 */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="搜索姓名、邮箱、职位、公司或标签..."
+                className="pl-9"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3">
+              <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                <SelectTrigger className="w-[140px]">
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="排序方式" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">最近更新</SelectItem>
+                  <SelectItem value="score">评分高低</SelectItem>
+                  <SelectItem value="name">姓名排序</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 候选人列表 */}
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <p className="mt-2 text-muted-foreground">加载中...</p>
+            </div>
+          ) : error ? (
+            <div className="p-8 text-center text-destructive">
+              <p>{error}</p>
+            </div>
+          ) : filteredCandidates.length === 0 ? (
+            <div className="empty-state py-16">
+              <User className="empty-state-icon" />
+              <p className="empty-state-title">
+                {searchTerm || statusFilter !== 'ALL' ? '未找到匹配的候选人' : '暂无候选人'}
+              </p>
+              <p className="empty-state-description">
+                {searchTerm || statusFilter !== 'ALL' 
+                  ? '请尝试调整搜索条件或筛选器' 
+                  : '点击上方按钮添加您的第一位候选人'}
+              </p>
+              <Button className="mt-4" asChild>
+                <Link href="/resume-upload">添加候选人</Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>候选人</th>
+                    <th>当前职位</th>
+                    <th>标签</th>
+                    <th>评分</th>
+                    <th>状态</th>
+                    <th>最后更新</th>
+                    <th className="text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCandidates.map((candidate) => (
+                    <CandidateRow key={candidate.id} candidate={candidate} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 分页 */}
+      {!loading && !error && filteredCandidates.length > 0 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            显示 {filteredCandidates.length} 条结果
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled>
+              上一页
+            </Button>
+            <Button variant="outline" size="sm" disabled>
+              下一页
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
