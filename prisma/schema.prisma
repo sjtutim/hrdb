@@ -38,24 +38,38 @@ model Candidate {
   name              String
   email             String          @unique
   phone             String?
-  education         String?
-  workExperience    Int?            // 工作年限
+  education         String?         @db.Text // 教育背景（文本描述）
+  workExperience    String?         @db.Text // 工作经验（文本描述）
   currentPosition   String?
   currentCompany    String?
   resumeUrl         String?         // 简历文件URL
   resumeContent     String?         @db.Text // 简历内容（Markdown格式）
   initialScore      Float?          // 初始评分
   totalScore        Float?          // 总评分
+  aiEvaluation      String?         @db.Text // AI简历评价
   status            CandidateStatus @default(NEW)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   recruiterId       String?         // 关联的招聘人员
   recruiter         User?           @relation(fields: [recruiterId], references: [id])
   tags              Tag[]           // 关联的标签
+  certificates      Certificate[]   // 证书/技能文件
   jobMatches        JobMatch[]      // 岗位匹配记录
   interviews        Interview[]     // 面试记录
   evaluations       Evaluation[]    // 评估记录
   employeeRecord    Employee?       // 如果成为员工，关联的员工记录
+}
+
+// 证书/技能文件模型
+model Certificate {
+  id            String    @id @default(uuid())
+  candidateId   String
+  candidate     Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  name          String    // 证书名称
+  description   String?   @db.Text // 描述
+  fileUrl       String?   // MinIO 文件 URL
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 enum CandidateStatus {

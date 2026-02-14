@@ -38,6 +38,13 @@ import {
   SelectValue,
 } from '@/app/components/ui/select';
 
+interface InterviewScore {
+  id: string;
+  category: string;
+  score: number;
+  notes: string | null;
+}
+
 interface Interview {
   id: string;
   candidateId: string;
@@ -46,8 +53,8 @@ interface Interview {
   scheduledAt: string;
   completedAt: string | null;
   notes: string | null;
-  score: number | null;
   status: string;
+  scores: InterviewScore[];
   candidate: {
     id: string;
     name: string;
@@ -58,6 +65,13 @@ interface Interview {
     id: string;
     name: string;
   };
+}
+
+// 计算面试总分
+function calculateTotalScore(scores: InterviewScore[]): number | null {
+  if (!scores || scores.length === 0) return null;
+  const total = scores.reduce((sum, s) => sum + s.score, 0);
+  return Math.round(total / scores.length * 10) / 10;
 }
 
 // 状态配置
@@ -144,19 +158,22 @@ function InterviewRow({ interview }: { interview: Interview }) {
         </span>
       </td>
       <td className="px-4 py-4">
-        {interview.score !== null ? (
-          <div className="flex items-center gap-1">
-            <span className={`text-sm font-bold ${
-              interview.score >= 80 ? 'text-emerald-600' : 
-              interview.score >= 60 ? 'text-amber-600' : 'text-red-600'
-            }`}>
-              {interview.score.toFixed(1)}
-            </span>
-            <span className="text-xs text-muted-foreground">/ 100</span>
-          </div>
-        ) : (
-          <span className="text-sm text-muted-foreground">未评分</span>
-        )}
+        {(() => {
+          const score = calculateTotalScore(interview.scores);
+          return score !== null ? (
+            <div className="flex items-center gap-1">
+              <span className={`text-sm font-bold ${
+                score >= 80 ? 'text-emerald-600' :
+                score >= 60 ? 'text-amber-600' : 'text-red-600'
+              }`}>
+                {score.toFixed(1)}
+              </span>
+              <span className="text-xs text-muted-foreground">/ 100</span>
+            </div>
+          ) : (
+            <span className="text-sm text-muted-foreground">未评分</span>
+          );
+        })()}
       </td>
       <td className="px-4 py-4 text-right">
         <DropdownMenu>

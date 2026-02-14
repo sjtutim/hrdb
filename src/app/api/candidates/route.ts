@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const candidates = await prisma.candidate.findMany({
       include: {
         tags: true,
+        certificates: true,
       },
       orderBy: {
         updatedAt: 'desc',
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email, phone, education, workExperience, currentPosition, currentCompany, status, tagIds } = body;
+    const { name, email, phone, education, workExperience, currentPosition, currentCompany, status, tagIds, aiEvaluation } = body;
 
     // 验证必填字段
     if (!name || !email) {
@@ -56,9 +57,10 @@ export async function POST(request: NextRequest) {
         email,
         phone: phone || null,
         education: education || null,
-        workExperience: workExperience ? parseInt(workExperience, 10) : null,
+        workExperience: workExperience || null,
         currentPosition: currentPosition || null,
         currentCompany: currentCompany || null,
+        aiEvaluation: aiEvaluation || null,
         status: status || 'NEW',
         ...(tagIds && tagIds.length > 0 ? {
           tags: {
@@ -68,6 +70,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         tags: true,
+        certificates: true,
       },
     });
 

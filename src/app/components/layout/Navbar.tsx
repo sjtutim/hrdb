@@ -177,7 +177,7 @@ const Navbar = () => {
                       <ListItem href="/resume-upload" title="添加候选人">
                         上传简历，AI自动解析建档
                       </ListItem>
-                      {isMenuVisible('matching') && (
+                      {isMenuVisible('candidates:matching') && (
                         <ListItem href="/matching" title="人才匹配">
                           为您的空缺职位寻找完美匹配
                         </ListItem>

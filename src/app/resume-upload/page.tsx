@@ -89,14 +89,14 @@ export default function ResumeUpload() {
         throw new Error('文件上传失败');
       }
 
-      const { fileId } = await uploadResponse.json();
+      const { fileId, fileUrl, objectName } = await uploadResponse.json();
 
       const parseResponse = await fetch('/api/resume/parse', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ fileId }),
+        body: JSON.stringify({ fileId, fileUrl, objectName }),
       });
 
       if (!parseResponse.ok) {

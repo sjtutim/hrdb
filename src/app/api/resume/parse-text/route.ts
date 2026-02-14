@@ -136,10 +136,17 @@ function extractEducation(text: string): string | null {
   return null;
 }
 
-function calculateWorkExperience(text: string): number | null {
-  // 简单模拟，实际应使用AI模型计算
+function calculateWorkExperience(text: string): string | null {
+  // 简单模拟，实际应使用AI模型提取工作经验描述
+  const expSection = text.match(/工作经[验历][\s\S]{0,500}/);
+  if (expSection) {
+    return expSection[0].trim().substring(0, 500);
+  }
   const yearMatches = text.match(/(\d+)年(工作)?(经验)?/);
-  return yearMatches ? parseInt(yearMatches[1], 10) : null;
+  if (yearMatches) {
+    return `${yearMatches[1]}年工作经验`;
+  }
+  return null;
 }
 
 function extractCurrentPosition(text: string): string | null {

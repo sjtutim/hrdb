@@ -616,21 +616,37 @@ function TagManagement() {
 
 // ==================== 角色管理 ====================
 
+// 与 Navbar.tsx 中的菜单项保持同步
 const MENU_ITEMS = [
   { key: "dashboard", label: "仪表盘" },
-  { key: "candidates", label: "候选人" },
-  { key: "interviews", label: "面试" },
-  { key: "jobs", label: "职位" },
-  { key: "matching", label: "人才匹配" },
+  { key: "candidates", label: "候选人", children: [
+    { key: "candidates:list", label: "所有候选人" },
+    { key: "candidates:create", label: "添加候选人" },
+    { key: "candidates:matching", label: "人才匹配" },
+  ]},
+  { key: "interviews", label: "面试", children: [
+    { key: "interviews:list", label: "所有面试" },
+    { key: "interviews:create", label: "安排面试" },
+    { key: "interviews:calendar", label: "面试日历" },
+  ]},
+  { key: "jobs", label: "职位", children: [
+    { key: "jobs:list", label: "所有职位" },
+    { key: "jobs:create", label: "发布职位" },
+  ]},
   { key: "employees", label: "人才库" },
 ]
+
+// 扁平化所有菜单项（包含子菜单）
+const ALL_MENU_KEYS = MENU_ITEMS.flatMap(item =>
+  item.children ? [item.key, ...item.children.map(c => c.key)] : [item.key]
+)
 
 function RoleManagement() {
   const [permissions, setPermissions] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
 
-  const allMenuKeys = MENU_ITEMS.map((m) => m.key)
+  const allMenuKeys = ALL_MENU_KEYS
 
   const fetchPermissions = useCallback(async () => {
     try {
@@ -724,19 +740,43 @@ function RoleManagement() {
               <CardContent>
                 <div className="space-y-3">
                   {MENU_ITEMS.map((menu) => (
-                    <div key={menu.key} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`${role.value}-${menu.key}`}
-                        checked={isAdmin ? true : menuKeys.includes(menu.key)}
-                        disabled={isAdmin}
-                        onCheckedChange={() => toggleMenu(role.value, menu.key)}
-                      />
-                      <Label
-                        htmlFor={`${role.value}-${menu.key}`}
-                        className="text-sm font-normal cursor-pointer"
-                      >
-                        {menu.label}
-                      </Label>
+                    <div key={menu.key}>
+                      {/* 父菜单 */}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`${role.value}-${menu.key}`}
+                          checked={isAdmin ? true : menuKeys.includes(menu.key)}
+                          disabled={isAdmin}
+                          onCheckedChange={() => toggleMenu(role.value, menu.key)}
+                        />
+                        <Label
+                          htmlFor={`${role.value}-${menu.key}`}
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          {menu.label}
+                        </Label>
+                      </div>
+                      {/* 子菜单 */}
+                      {menu.children && menu.children.length > 0 && (
+                        <div className="ml-6 mt-1 space-y-1 border-l-2 border-muted pl-3">
+                          {menu.children.map((child) => (
+                            <div key={child.key} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`${role.value}-${child.key}`}
+                                checked={isAdmin ? true : menuKeys.includes(child.key)}
+                                disabled={isAdmin}
+                                onCheckedChange={() => toggleMenu(role.value, child.key)}
+                              />
+                              <Label
+                                htmlFor={`${role.value}-${child.key}`}
+                                className="text-sm text-muted-foreground cursor-pointer"
+                              >
+                                {child.label}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

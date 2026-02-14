@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/app/components/ui/button';
@@ -37,7 +38,7 @@ interface StatItem {
 }
 
 interface InterviewItem {
-  id: number;
+  id: string;
   candidate: string;
   position: string;
   time: string;
@@ -60,6 +61,49 @@ interface FunnelStage {
   color: string;
 }
 
+interface CandidateSummary {
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+  currentPosition: string | null;
+  currentCompany: string | null;
+  resumeUrl: string | null;
+  resumeContent: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface InterviewSummary {
+  id: string;
+  candidateId: string;
+  type: string;
+  status: string;
+  scheduledAt: string;
+  completedAt: string | null;
+  createdAt: string;
+  candidate: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  interviewer: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+interface JobPostingSummary {
+  id: string;
+  status: string;
+}
+
+interface EmployeeSummary {
+  id: string;
+  hireDate: string;
+}
+
 // ============ 工具函数 ============
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -74,6 +118,68 @@ function formatDate(): string {
   const now = new Date();
   const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
   return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 星期${weekdays[now.getDay()]}`;
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate()
+  );
+}
+
+function formatRelativeDateTime(dateString: string): string {
+  const target = new Date(dateString);
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+
+  const time = target.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  if (isSameDay(target, now)) return `今天 ${time}`;
+  if (isSameDay(target, tomorrow)) return `明天 ${time}`;
+
+  return target.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+function formatRelativeElapsed(dateString: string): string {
+  const target = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - target.getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diffMs < hour) return `${Math.max(1, Math.floor(diffMs / minute))}分钟前`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)}小时前`;
+  if (diffMs < day * 7) return `${Math.floor(diffMs / day)}天前`;
+
+  return target.toLocaleDateString('zh-CN');
+}
+
+function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getMonthStart(date: Date): Date {
+  const d = new Date(date);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
 // ============ 组件 ============
@@ -193,17 +299,23 @@ function InterviewListItem({ interview }: { interview: InterviewItem }) {
 // 最近动态项
 function ActivityListItem({ activity }: { activity: ActivityItem }) {
   const statusConfig: Record<string, { bg: string; icon: React.ElementType }> = {
-    '已面试': { bg: 'bg-blue-100 dark:bg-blue-900/30', icon: Calendar },
-    '待面试': { bg: 'bg-amber-100 dark:bg-amber-900/30', icon: Clock },
-    '已录用': { bg: 'bg-emerald-100 dark:bg-emerald-900/30', icon: UserCheck },
+    '新候选人': { bg: 'bg-blue-100 dark:bg-blue-900/30', icon: Users },
+    '筛选中': { bg: 'bg-indigo-100 dark:bg-indigo-900/30', icon: FileText },
+    '面试中': { bg: 'bg-amber-100 dark:bg-amber-900/30', icon: Calendar },
+    '已发Offer': { bg: 'bg-emerald-100 dark:bg-emerald-900/30', icon: UserCheck },
+    '已入职': { bg: 'bg-emerald-100 dark:bg-emerald-900/30', icon: UserCheck },
+    '已拒绝': { bg: 'bg-rose-100 dark:bg-rose-900/30', icon: Clock },
   };
   const config = statusConfig[activity.status] || { bg: 'bg-gray-100', icon: UserCheck };
   const StatusIcon = config.icon;
 
   const statusColors: Record<string, string> = {
-    '已面试': 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20 dark:bg-blue-900/30 dark:text-blue-400',
-    '待面试': 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20 dark:bg-amber-900/30 dark:text-amber-400',
-    '已录用': 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-900/30 dark:text-emerald-400',
+    '新候选人': 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20 dark:bg-blue-900/30 dark:text-blue-400',
+    '筛选中': 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600/20 dark:bg-indigo-900/30 dark:text-indigo-400',
+    '面试中': 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20 dark:bg-amber-900/30 dark:text-amber-400',
+    '已发Offer': 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-900/30 dark:text-emerald-400',
+    '已入职': 'bg-green-50 text-green-700 ring-1 ring-green-600/20 dark:bg-green-900/30 dark:text-green-400',
+    '已拒绝': 'bg-rose-50 text-rose-700 ring-1 ring-rose-600/20 dark:bg-rose-900/30 dark:text-rose-400',
   };
 
   return (
@@ -226,11 +338,10 @@ function ActivityListItem({ activity }: { activity: ActivityItem }) {
 }
 
 // 招聘漏斗阶段
-function FunnelStageItem({ stage, index }: { stage: FunnelStage; index: number }) {
-  const percentage = (stage.count / stage.total) * 100;
-  const prevCounts = [156, 98, 45, 18, 12];
-  const prevCount = index > 0 ? prevCounts[index - 1] : stage.count;
-  const conversionRate = index > 0 ? Math.round((stage.count / prevCount) * 100) : 100;
+function FunnelStageItem({ stage, index, prevCount }: { stage: FunnelStage; index: number; prevCount?: number }) {
+  const percentage = stage.total > 0 ? (stage.count / stage.total) * 100 : 0;
+  const baseCount = prevCount ?? stage.count;
+  const conversionRate = index > 0 ? Math.round((stage.count / Math.max(1, baseCount)) * 100) : 100;
 
   return (
     <div>
@@ -259,46 +370,231 @@ function FunnelStageItem({ stage, index }: { stage: FunnelStage; index: number }
 export default function DashboardPage() {
   const { data: session } = useSession();
   const userName = session?.user?.name || '用户';
+  const [candidates, setCandidates] = useState<CandidateSummary[]>([]);
+  const [interviews, setInterviews] = useState<InterviewSummary[]>([]);
+  const [jobPostings, setJobPostings] = useState<JobPostingSummary[]>([]);
+  const [employees, setEmployees] = useState<EmployeeSummary[]>([]);
+  const [dataError, setDataError] = useState<string | null>(null);
 
-  // 统计数据
-  const stats: StatItem[] = [
-    {
-      title: '候选人总数',
-      value: '2,543',
-      icon: Users,
-      trend: { value: '+12.5%', positive: true },
-      trendLabel: '较上月',
-      color: 'blue',
-      href: '/candidates',
-    },
-    {
-      title: '本月面试',
-      value: '78',
-      icon: Calendar,
-      trend: { value: '+8.2%', positive: true },
-      trendLabel: '较上月',
-      color: 'green',
-      href: '/interviews',
-    },
-    {
-      title: '开放职位',
-      value: '32',
-      icon: Briefcase,
-      trend: { value: '+3', positive: true },
-      trendLabel: '本周新增',
-      color: 'amber',
-      href: '/jobs',
-    },
-    {
-      title: '平均招聘周期',
-      value: '18天',
-      icon: Clock,
-      trend: { value: '-2天', positive: true },
-      trendLabel: '较上月',
-      color: 'purple',
-      href: '/matching',
-    },
-  ];
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        const [candidatesRes, interviewsRes, jobsRes, employeesRes] = await Promise.all([
+          fetch('/api/candidates'),
+          fetch('/api/interviews'),
+          fetch('/api/job-postings'),
+          fetch('/api/employees'),
+        ]);
+
+        if (!candidatesRes.ok || !interviewsRes.ok || !jobsRes.ok || !employeesRes.ok) {
+          throw new Error('仪表盘数据加载失败');
+        }
+
+        const [candidateData, interviewData, jobsData, employeeData] = await Promise.all([
+          candidatesRes.json(),
+          interviewsRes.json(),
+          jobsRes.json(),
+          employeesRes.json(),
+        ]);
+
+        setCandidates(candidateData);
+        setInterviews(interviewData);
+        setJobPostings(jobsData);
+        setEmployees(employeeData.employees || []);
+      } catch (error) {
+        console.error('加载仪表盘数据失败:', error);
+        setDataError('部分统计数据加载失败');
+      }
+    };
+
+    loadDashboardData();
+  }, []);
+
+  const {
+    stats,
+    upcomingInterviews,
+    recentActivities,
+    funnelStages,
+    totalFunnelCount,
+    weekOverview,
+  } = useMemo(() => {
+    const now = new Date();
+    const weekStart = getWeekStart(now);
+    const monthStart = getMonthStart(now);
+    const nextMonthStart = new Date(monthStart);
+    nextMonthStart.setMonth(monthStart.getMonth() + 1);
+    const next7Days = new Date(now);
+    next7Days.setDate(now.getDate() + 7);
+
+    const candidateMap = new Map(candidates.map((item) => [item.id, item]));
+
+    const monthlyInterviews = interviews.filter((item) => {
+      const scheduledDate = new Date(item.scheduledAt);
+      return scheduledDate >= monthStart && scheduledDate < nextMonthStart;
+    });
+
+    const activeJobs = jobPostings.filter((item) => item.status === 'ACTIVE').length;
+
+    const completedInterviewByCandidate = new Map<string, Date>();
+    interviews.forEach((item) => {
+      if (item.status !== 'COMPLETED' || !item.completedAt) return;
+      const completedAt = new Date(item.completedAt);
+      const prev = completedInterviewByCandidate.get(item.candidateId);
+      if (!prev || completedAt < prev) {
+        completedInterviewByCandidate.set(item.candidateId, completedAt);
+      }
+    });
+
+    const cycleDays = Array.from(completedInterviewByCandidate.entries())
+      .map(([candidateId, completedAt]) => {
+        const candidate = candidateMap.get(candidateId);
+        if (!candidate) return null;
+        const createdAt = new Date(candidate.createdAt);
+        const diff = Math.round((completedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+        return diff >= 0 ? diff : null;
+      })
+      .filter((val): val is number => val !== null);
+
+    const avgCycleDays = cycleDays.length > 0
+      ? Math.round(cycleDays.reduce((sum, day) => sum + day, 0) / cycleDays.length)
+      : null;
+
+    const computedStats: StatItem[] = [
+      {
+        title: '候选人总数',
+        value: String(candidates.length),
+        icon: Users,
+        color: 'blue',
+        href: '/candidates',
+      },
+      {
+        title: '本月面试',
+        value: String(monthlyInterviews.length),
+        icon: Calendar,
+        color: 'green',
+        href: '/interviews',
+      },
+      {
+        title: '开放职位',
+        value: String(activeJobs),
+        icon: Briefcase,
+        color: 'amber',
+        href: '/jobs',
+      },
+      {
+        title: '平均招聘周期',
+        value: avgCycleDays === null ? '--' : `${avgCycleDays}天`,
+        icon: Clock,
+        color: 'purple',
+        href: '/matching',
+      },
+    ];
+
+    const interviewTypeLabelMap: Record<string, string> = {
+      PHONE: '电话面试',
+      TECHNICAL: '技术面试',
+      HR: 'HR面试',
+      MANAGER: '主管面试',
+      PERSONALITY: '性格测试',
+    };
+
+    const computedUpcomingInterviews: InterviewItem[] = interviews
+      .filter((item) => {
+        const scheduledAt = new Date(item.scheduledAt);
+        return (
+          scheduledAt >= now
+          && scheduledAt <= next7Days
+          && (item.status === 'SCHEDULED' || item.status === 'RESCHEDULED')
+        );
+      })
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+      .slice(0, 6)
+      .map((item) => ({
+        id: item.id,
+        candidate: item.candidate.name,
+        position: candidateMap.get(item.candidateId)?.currentPosition || '待定岗位',
+        time: formatRelativeDateTime(item.scheduledAt),
+        interviewer: item.interviewer.name,
+        type: interviewTypeLabelMap[item.type] || item.type,
+      }));
+
+    const candidateStatusLabelMap: Record<string, string> = {
+      NEW: '新候选人',
+      SCREENING: '筛选中',
+      INTERVIEWING: '面试中',
+      OFFERED: '已发Offer',
+      ONBOARDING: '已入职',
+      PROBATION: '已入职',
+      EMPLOYED: '已入职',
+      REJECTED: '已拒绝',
+      ARCHIVED: '已拒绝',
+    };
+
+    const computedActivities: ActivityItem[] = candidates
+      .slice(0, 5)
+      .map((item, index) => ({
+        id: index + 1,
+        title: item.name,
+        description: `${item.currentPosition || '待定岗位'}${item.currentCompany ? ` - ${item.currentCompany}` : ''}`,
+        time: formatRelativeElapsed(item.updatedAt),
+        status: candidateStatusLabelMap[item.status] || '筛选中',
+      }));
+
+    const baseTotal = candidates.length;
+    const screenedCount = candidates.filter((item) => (
+      ['SCREENING', 'INTERVIEWING', 'OFFERED', 'ONBOARDING', 'PROBATION', 'EMPLOYED'].includes(item.status)
+    )).length;
+    const interviewingCount = candidates.filter((item) => item.status === 'INTERVIEWING').length;
+    const offeredCount = candidates.filter((item) => item.status === 'OFFERED').length;
+    const hiredCount = candidates.filter((item) => ['ONBOARDING', 'PROBATION', 'EMPLOYED'].includes(item.status)).length;
+
+    const computedFunnelStages: FunnelStage[] = [
+      { stage: '新增简历', count: baseTotal, total: Math.max(1, baseTotal), color: 'bg-blue-500' },
+      { stage: '筛选通过', count: screenedCount, total: Math.max(1, baseTotal), color: 'bg-indigo-500' },
+      { stage: '面试中', count: interviewingCount, total: Math.max(1, baseTotal), color: 'bg-amber-500' },
+      { stage: 'Offer发放', count: offeredCount, total: Math.max(1, baseTotal), color: 'bg-emerald-500' },
+      { stage: '已入职', count: hiredCount, total: Math.max(1, baseTotal), color: 'bg-green-500' },
+    ];
+
+    const thisWeekCandidates = candidates.filter((item) => {
+      const createdAt = new Date(item.createdAt);
+      return createdAt >= weekStart && createdAt <= now;
+    }).length;
+
+    const thisWeekCompletedInterviews = interviews.filter((item) => {
+      if (item.status !== 'COMPLETED' || !item.completedAt) return false;
+      const completedAt = new Date(item.completedAt);
+      return completedAt >= weekStart && completedAt <= now;
+    }).length;
+
+    const thisWeekHiredEmployees = employees.filter((item) => {
+      const hireDate = new Date(item.hireDate);
+      return hireDate >= weekStart && hireDate <= now;
+    }).length;
+
+    const thisWeekResumes = candidates.filter((item) => {
+      const createdAt = new Date(item.createdAt);
+      return (
+        createdAt >= weekStart
+        && createdAt <= now
+        && Boolean(item.resumeUrl || item.resumeContent)
+      );
+    }).length;
+
+    return {
+      stats: computedStats,
+      upcomingInterviews: computedUpcomingInterviews,
+      recentActivities: computedActivities,
+      funnelStages: computedFunnelStages,
+      totalFunnelCount: baseTotal,
+      weekOverview: {
+        newCandidates: thisWeekCandidates,
+        completedInterviews: thisWeekCompletedInterviews,
+        hired: thisWeekHiredEmployees,
+        newResumes: thisWeekResumes,
+      },
+    };
+  }, [candidates, interviews, jobPostings, employees]);
 
   // 快捷操作
   const quickActions = [
@@ -306,30 +602,6 @@ export default function DashboardPage() {
     { label: '发布职位', href: '/jobs/create', icon: Briefcase, color: 'bg-emerald-500' },
     { label: '安排面试', href: '/interviews/create', icon: Calendar, color: 'bg-purple-500' },
     { label: '人才匹配', href: '/matching', icon: Target, color: 'bg-amber-500' },
-  ];
-
-  // 即将到来的面试
-  const upcomingInterviews: InterviewItem[] = [
-    { id: 1, candidate: '李四', position: '产品经理', time: '今天 14:00', interviewer: '陈总监', type: '技术面试' },
-    { id: 2, candidate: '赵六', position: '后端工程师', time: '明天 10:30', interviewer: '王经理', type: 'HR面试' },
-    { id: 3, candidate: '钱七', position: '数据分析师', time: '后天 15:00', interviewer: '刘总监', type: '主管面试' },
-    { id: 4, candidate: '孙八', position: 'UI设计师', time: '周五 09:00', interviewer: '李主管', type: '技术面试' },
-  ];
-
-  // 最近动态
-  const recentActivities: ActivityItem[] = [
-    { id: 1, title: '张三', description: '高级前端工程师 - 技术部', time: '2小时前', status: '已面试' },
-    { id: 2, title: '王五', description: 'UI设计师 - 设计部', time: '4小时前', status: '已录用' },
-    { id: 3, title: '赵六', description: '后端工程师 - 技术部', time: '昨天', status: '待面试' },
-  ];
-
-  // 招聘漏斗数据
-  const funnelStages: FunnelStage[] = [
-    { stage: '新增简历', count: 156, total: 156, color: 'bg-blue-500' },
-    { stage: '筛选通过', count: 98, total: 156, color: 'bg-indigo-500' },
-    { stage: '面试中', count: 45, total: 156, color: 'bg-amber-500' },
-    { stage: 'Offer发放', count: 18, total: 156, color: 'bg-emerald-500' },
-    { stage: '已入职', count: 12, total: 156, color: 'bg-green-500' },
   ];
 
   return (
@@ -368,6 +640,12 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {dataError && (
+        <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          {dataError}
+        </div>
+      )}
+
       {/* ========== 快捷操作 ========== */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {quickActions.map((action, index) => (
@@ -399,9 +677,15 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="divide-y divide-border/50">
-                {upcomingInterviews.map((interview) => (
-                  <InterviewListItem key={interview.id} interview={interview} />
-                ))}
+                {upcomingInterviews.length > 0 ? (
+                  upcomingInterviews.map((interview) => (
+                    <InterviewListItem key={interview.id} interview={interview} />
+                  ))
+                ) : (
+                  <div className="py-6 text-center text-sm text-muted-foreground">
+                    未来7天暂无面试安排
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -415,7 +699,7 @@ export default function DashboardPage() {
                   <CardDescription className="text-xs mt-0.5">本月候选人转化情况</CardDescription>
                 </div>
                 <Badge variant="secondary" className="text-xs font-normal">
-                  共 156 人
+                  共 {totalFunnelCount} 人
                 </Badge>
               </div>
             </CardHeader>
@@ -426,6 +710,7 @@ export default function DashboardPage() {
                     key={index}
                     stage={stage}
                     index={index}
+                    prevCount={index > 0 ? funnelStages[index - 1].count : undefined}
                   />
                 ))}
               </div>
@@ -475,9 +760,15 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="divide-y divide-border/50">
-                {recentActivities.map((activity) => (
-                  <ActivityListItem key={activity.id} activity={activity} />
-                ))}
+                {recentActivities.length > 0 ? (
+                  recentActivities.map((activity) => (
+                    <ActivityListItem key={activity.id} activity={activity} />
+                  ))
+                ) : (
+                  <div className="py-6 text-center text-sm text-muted-foreground">
+                    暂无最近动态
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -496,7 +787,7 @@ export default function DashboardPage() {
                     </div>
                     <span className="text-sm">新增候选人</span>
                   </div>
-                  <span className="text-sm font-bold tabular-nums">24</span>
+                  <span className="text-sm font-bold tabular-nums">{weekOverview.newCandidates}</span>
                 </div>
                 <div className="flex items-center justify-between py-1">
                   <div className="flex items-center gap-2.5">
@@ -505,7 +796,7 @@ export default function DashboardPage() {
                     </div>
                     <span className="text-sm">完成面试</span>
                   </div>
-                  <span className="text-sm font-bold tabular-nums">12</span>
+                  <span className="text-sm font-bold tabular-nums">{weekOverview.completedInterviews}</span>
                 </div>
                 <div className="flex items-center justify-between py-1">
                   <div className="flex items-center gap-2.5">
@@ -514,7 +805,7 @@ export default function DashboardPage() {
                     </div>
                     <span className="text-sm">成功入职</span>
                   </div>
-                  <span className="text-sm font-bold tabular-nums">3</span>
+                  <span className="text-sm font-bold tabular-nums">{weekOverview.hired}</span>
                 </div>
                 <div className="flex items-center justify-between py-1">
                   <div className="flex items-center gap-2.5">
@@ -523,7 +814,7 @@ export default function DashboardPage() {
                     </div>
                     <span className="text-sm">新增简历</span>
                   </div>
-                  <span className="text-sm font-bold tabular-nums">38</span>
+                  <span className="text-sm font-bold tabular-nums">{weekOverview.newResumes}</span>
                 </div>
               </div>
             </CardContent>

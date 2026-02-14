@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
             email: true,
           },
         },
+        scores: true,
       },
       orderBy: {
         scheduledAt: 'desc',

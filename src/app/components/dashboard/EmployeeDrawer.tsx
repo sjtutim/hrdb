@@ -23,7 +23,7 @@ interface Employee {
   totalScore?: number | null;
   status: string;
   education?: string | null;
-  workExperience?: number | null;
+  workExperience?: string | null;
   hireDate?: string | null;
   department?: string;
   skills?: { name: string; level: number }[];
@@ -183,14 +183,14 @@ export function EmployeeDrawer({ employee, isOpen, onClose, onEdit, onExport, on
                     </div>
                   </div>
                 )}
-                {employee.workExperience !== null && employee.workExperience !== undefined && (
-                  <div className="flex items-center gap-3">
+                {employee.workExperience && (
+                  <div className="flex items-start gap-3 col-span-2">
                     <div className="p-2 rounded-lg bg-slate-800/50">
                       <Briefcase className="w-4 h-4 text-slate-400" />
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500">工作年限</p>
-                      <p className="text-sm text-slate-200">{employee.workExperience} 年</p>
+                      <p className="text-xs text-slate-500">工作经验</p>
+                      <p className="text-sm text-slate-200 whitespace-pre-line">{employee.workExperience}</p>
                     </div>
                   </div>
                 )}

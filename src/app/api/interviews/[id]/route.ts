@@ -109,7 +109,7 @@ export async function PUT(
       
       switch (data.decision) {
         case 'PASS':
-          candidateStatus = 'OFFER_PENDING';
+          candidateStatus = 'OFFERED';
           break;
         case 'FAIL':
           candidateStatus = 'REJECTED';

@@ -115,12 +115,15 @@ async function calculateMatchScore(candidate: any, job: any): Promise<number> {
       : 25; // 如果岗位没有标签，给予中等分数
     
     // 2. 工作经验匹配（最高30分）
-    // 假设岗位需要的经验是3-5年
+    // 从文本中提取工作年限数字
     const jobRequiredExp = 4; // 这应该从岗位描述中提取
-    const candidateExp = candidate.workExperience || 0;
-    
+    const candidateExp = extractYearsFromText(candidate.workExperience);
+
     let expMatchScore = 0;
-    if (candidateExp >= jobRequiredExp - 1 && candidateExp <= jobRequiredExp + 2) {
+    if (candidateExp === null) {
+      // 无法提取年限时，给予中等分数
+      expMatchScore = candidate.workExperience ? 15 : 5;
+    } else if (candidateExp >= jobRequiredExp - 1 && candidateExp <= jobRequiredExp + 2) {
       // 经验在要求范围内或略高
       expMatchScore = 30;
     } else if (candidateExp >= jobRequiredExp - 2 && candidateExp < jobRequiredExp - 1) {
@@ -183,8 +186,8 @@ async function generateAIEvaluation(candidate: any, job: any, matchScore: number
     }
     
     // 添加工作经验分析
-    const candidateExp = candidate.workExperience || 0;
-    evaluation += `\n\n工作经验: ${candidateExp}年`;
+    const expText = candidate.workExperience || '未提供';
+    evaluation += `\n\n工作经验: ${expText}`;
     
     // 添加总结和建议
     if (matchScore >= 80) {
@@ -248,4 +251,15 @@ async function updateCandidateTotalScore(candidateId: string): Promise<void> {
   } catch (error) {
     console.error('更新候选人总分错误:', error);
   }
+}
+
+// 从工作经验文本中提取年限数字
+function extractYearsFromText(text: string | null): number | null {
+  if (!text) return null;
+  // 尝试匹配 "X年" 格式
+  const yearMatch = text.match(/(\d+)\s*年/);
+  if (yearMatch) {
+    return parseInt(yearMatch[1], 10);
+  }
+  return null;
 }

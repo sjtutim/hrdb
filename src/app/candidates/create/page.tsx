@@ -24,6 +24,7 @@ const formSchema = z.object({
   workExperience: z.string().optional(),
   currentPosition: z.string().optional(),
   currentCompany: z.string().optional(),
+  aiEvaluation: z.string().optional(),
   status: z.enum(['NEW', 'SCREENING', 'INTERVIEWING', 'OFFERED', 'ONBOARDING', 'PROBATION', 'EMPLOYED', 'REJECTED', 'ARCHIVED']),
 });
 
@@ -50,6 +51,7 @@ export default function CreateCandidatePage() {
       workExperience: '',
       currentPosition: '',
       currentCompany: '',
+      aiEvaluation: '',
       status: 'NEW',
     },
   });
@@ -187,46 +189,6 @@ export default function CreateCandidatePage() {
 
               <FormField
                 control={form.control}
-                name="education"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>学历</FormLabel>
-                    <FormControl>
-                      <input
-                        placeholder="例如：本科、硕士"
-                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:text-white"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="workExperience"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>工作年限</FormLabel>
-                    <FormControl>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="请输入工作年限"
-                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:text-white"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="currentPosition"
                 render={({ field }) => (
                   <FormItem>
@@ -243,6 +205,44 @@ export default function CreateCandidatePage() {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="education"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>教育背景</FormLabel>
+                  <FormControl>
+                    <textarea
+                      rows={3}
+                      placeholder="请描述教育背景，例如：2015-2019 北京大学 计算机科学与技术 本科"
+                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:text-white resize-y"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="workExperience"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>工作经验</FormLabel>
+                  <FormControl>
+                    <textarea
+                      rows={4}
+                      placeholder={"请描述工作经验，例如：\n2019-2021 某科技有限公司 前端开发工程师\n2021-至今 某互联网公司 高级前端工程师"}
+                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:text-white resize-y"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
@@ -262,7 +262,27 @@ export default function CreateCandidatePage() {
                   </FormItem>
                 )}
               />
+            </div>
 
+            <FormField
+              control={form.control}
+              name="aiEvaluation"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>AI 简历评价</FormLabel>
+                  <FormControl>
+                    <textarea
+                      placeholder="请输入AI简历评价（可选）"
+                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:text-white min-h-[150px]"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
                 name="status"
