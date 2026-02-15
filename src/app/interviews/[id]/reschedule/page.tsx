@@ -215,7 +215,7 @@ export default function RescheduleInterviewPage({ params }: { params: { id: stri
               required
             >
               <option value="">选择面试类型</option>
-              <option value="PHONE">电话面试</option>
+              <option value="PHONE">线上面试</option>
               <option value="TECHNICAL">技术面试</option>
               <option value="HR">HR面试</option>
               <option value="MANAGER">主管面试</option>

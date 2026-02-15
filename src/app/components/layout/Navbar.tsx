@@ -2,9 +2,10 @@
 
 import React from "react"
 import Link from "next/link"
+
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
-import { 
+import {
   NavigationMenu,
   NavigationMenuContent,
   NavigationMenuItem,
@@ -13,7 +14,7 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle
 } from "@/app/components/ui/navigation-menu"
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -25,15 +26,15 @@ import { Button } from "@/app/components/ui/button"
 import { ThemeToggle } from "@/app/components/ui/theme-toggle"
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar"
 import { Badge } from "@/app/components/ui/badge"
-import { 
-  User, 
-  LogOut, 
-  Menu, 
-  ChevronDown, 
-  Home, 
-  Users, 
-  Calendar, 
-  Briefcase, 
+import {
+  User,
+  LogOut,
+  Menu,
+  ChevronDown,
+  Home,
+  Users,
+  Calendar,
+  Briefcase,
   BarChart3,
   Target,
   Settings,
@@ -114,12 +115,12 @@ const Navbar = () => {
         {/* Logo */}
         <div className="flex items-center gap-2">
           <Link href="/dashboard" className="flex items-center gap-2 group">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
-              <Users className="h-5 w-5" />
+            <div className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center">
+              <img src="/logo.png" alt="顿慧人才库" width={32} height={32} className="object-cover" />
             </div>
             <span className="font-bold text-xl hidden sm:inline">顿慧人才库</span>
           </Link>
-          
+
           {/* AI Badge */}
           <Badge variant="outline" className="hidden md:flex items-center gap-1 bg-primary/5 text-primary text-xs ml-2">
             <Sparkles className="h-3 w-3" />
@@ -266,7 +267,7 @@ const Navbar = () => {
         {/* User Menu */}
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          
+
           {session ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -310,8 +311,8 @@ const Navbar = () => {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => signOut()} 
+                <DropdownMenuItem
+                  onClick={() => signOut()}
                   className="text-destructive cursor-pointer"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
@@ -329,11 +330,11 @@ const Navbar = () => {
               </Button>
             </div>
           )}
-          
+
           {/* Mobile menu button */}
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className="md:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
@@ -341,7 +342,7 @@ const Navbar = () => {
           </Button>
         </div>
       </div>
-      
+
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t bg-background">

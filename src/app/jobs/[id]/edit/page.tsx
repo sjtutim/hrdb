@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import { Check, Plus, X, Loader2 } from 'lucide-react';
 
 import {
   Form,
@@ -17,6 +18,130 @@ import {
   FormLabel,
   FormMessage,
 } from '@/app/components/ui/form';
+
+// 标签选择器组件 - 支持展开/收起和新增标签
+function TagSelector({
+  category,
+  categoryName,
+  tags,
+  selectedTags,
+  onToggle,
+  onAddTag,
+}: {
+  category: string;
+  categoryName: string;
+  tags: { id: string; name: string }[];
+  selectedTags: string[];
+  onToggle: (id: string) => void;
+  onAddTag: (category: string, name: string) => Promise<void>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [showInput, setShowInput] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const maxVisible = 100;
+  const hasMore = tags.length > maxVisible;
+  const visibleTags = expanded ? tags : tags.slice(0, maxVisible);
+
+  const handleAdd = async () => {
+    const trimmed = newTagName.trim();
+    if (!trimmed) return;
+    if (tags.some(t => t.name === trimmed)) {
+      setNewTagName('');
+      setShowInput(false);
+      return;
+    }
+    setAdding(true);
+    try {
+      await onAddTag(category, trimmed);
+      setNewTagName('');
+      setShowInput(false);
+    } catch {
+      // error handled by parent
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center gap-2 mb-2">
+        <h4 className="text-sm font-medium">{categoryName}</h4>
+        {!showInput && (
+          <button
+            type="button"
+            onClick={() => setShowInput(true)}
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            title="添加新标签"
+          >
+            <Plus className="h-3 w-3" />
+            新增
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {visibleTags.map((tag) => (
+          <button
+            key={tag.id}
+            type="button"
+            onClick={() => onToggle(tag.id)}
+            className={`px-2 py-0.5 rounded-full text-xs font-medium transition-all ${
+              selectedTags.includes(tag.id)
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+          >
+            {selectedTags.includes(tag.id) && (
+              <Check className="h-2.5 w-2.5 inline mr-0.5" />
+            )}
+            {tag.name}
+          </button>
+        ))}
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="px-2 py-0.5 rounded-full text-xs font-medium bg-transparent text-muted-foreground hover:text-foreground hover:bg-accent"
+          >
+            {expanded ? '收起' : `+${tags.length - maxVisible} 更多`}
+          </button>
+        )}
+        {showInput && (
+          <span className="inline-flex items-center gap-1">
+            <input
+              type="text"
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
+                if (e.key === 'Escape') { setShowInput(false); setNewTagName(''); }
+              }}
+              placeholder="输入标签名"
+              autoFocus
+              disabled={adding}
+              className="h-6 w-24 px-2 text-xs border rounded-full focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={adding || !newTagName.trim()}
+              className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowInput(false); setNewTagName(''); }}
+              className="h-6 w-6 inline-flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // 定义表单验证模式
 const formSchema = z.object({
@@ -160,6 +285,22 @@ export default function EditJobPage({ params }: { params: { id: string } }) {
     });
   };
 
+  // 新增标签并同步到标签库
+  const handleAddTag = async (category: string, name: string) => {
+    const response = await fetch('/api/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, category }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || '创建标签失败');
+    }
+    const newTag = await response.json();
+    setAvailableTags((prev) => [...prev, newTag]);
+    setSelectedTags((prev) => [...prev, newTag.id]);
+  };
+
   // 处理AI生成建议
   const handleGenerateAiSuggestions = async () => {
     const title = form.getValues('title');
@@ -244,27 +385,23 @@ export default function EditJobPage({ params }: { params: { id: string } }) {
     }
   };
 
-  // 按类别分组标签
+  // 标签类别显示名称
+  const categoryMap: Record<string, string> = {
+    SKILL: '技能',
+    INDUSTRY: '行业',
+    EDUCATION: '教育',
+    EXPERIENCE: '经验',
+    PERSONALITY: '性格特质',
+  };
+
+  // 按类别分组标签（确保所有类别都显示）
   const groupedTags = availableTags.reduce((acc, tag) => {
-    if (!acc[tag.category]) {
-      acc[tag.category] = [];
-    }
+    if (!acc[tag.category]) acc[tag.category] = [];
     acc[tag.category].push(tag);
     return acc;
-  }, {} as Record<string, Tag[]>);
+  }, Object.keys(categoryMap).reduce((acc, key) => ({ ...acc, [key]: [] }), {} as Record<string, Tag[]>));
 
-  // 获取标签类别显示名称
-  const getCategoryDisplayName = (category: string) => {
-    const categoryMap: Record<string, string> = {
-      SKILL: '技能',
-      INDUSTRY: '行业',
-      EDUCATION: '教育',
-      EXPERIENCE: '经验',
-      PERSONALITY: '性格特质',
-      OTHER: '其他',
-    };
-    return categoryMap[category] || category;
-  };
+  const getCategoryDisplayName = (category: string) => categoryMap[category] || category;
 
   if (loading) {
     return (
@@ -351,27 +488,15 @@ export default function EditJobPage({ params }: { params: { id: string } }) {
               </p>
 
               {Object.entries(groupedTags).map(([category, tags]) => (
-                <div key={category} className="mb-4">
-                  <h4 className="text-md font-medium mb-2">
-                    {getCategoryDisplayName(category)}
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((tag) => (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        onClick={() => handleTagToggle(tag.id)}
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          selectedTags.includes(tag.id)
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                        }`}
-                      >
-                        {tag.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <TagSelector
+                  key={category}
+                  category={category}
+                  categoryName={getCategoryDisplayName(category)}
+                  tags={tags}
+                  selectedTags={selectedTags}
+                  onToggle={handleTagToggle}
+                  onAddTag={handleAddTag}
+                />
               ))}
             </div>
 

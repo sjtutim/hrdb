@@ -27,7 +27,7 @@ export async function GET(
             tags: true,
           },
         },
-        interviewer: {
+        interviews: {
           select: {
             id: true,
             name: true,
@@ -80,21 +80,37 @@ export async function PUT(
     }
     
     // 更新面试信息
+    const updateData: any = {
+      type: data.type || currentInterview.type,
+      scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : currentInterview.scheduledAt,
+      location: data.location !== undefined ? data.location : currentInterview.location,
+      completedAt: data.completedAt ? new Date(data.completedAt) : data.status === 'COMPLETED' ? new Date() : currentInterview.completedAt,
+      status: data.status || currentInterview.status,
+      notes: data.notes !== undefined ? data.notes : currentInterview.notes,
+      feedback: data.feedback !== undefined ? data.feedback : currentInterview.feedback,
+      decision: data.decision || currentInterview.decision,
+    };
+
+    // 如果提供了新的面试官列表，更新多对多关系
+    if (data.interviewerIds) {
+      updateData.interviews = {
+        set: data.interviewerIds.map((id: string) => ({ id })),
+      };
+    }
+
     const updatedInterview = await prisma.interview.update({
       where: {
         id: interviewId,
       },
-      data: {
-        type: data.type || currentInterview.type,
-        scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : currentInterview.scheduledAt,
-        completedAt: data.completedAt ? new Date(data.completedAt) : data.status === 'COMPLETED' ? new Date() : currentInterview.completedAt,
-        status: data.status || currentInterview.status,
-        notes: data.notes !== undefined ? data.notes : currentInterview.notes,
-        feedback: data.feedback !== undefined ? data.feedback : currentInterview.feedback,
-        decision: data.decision || currentInterview.decision,
-      },
+      data: updateData,
       include: {
         candidate: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        interviews: {
           select: {
             id: true,
             name: true,

@@ -27,12 +27,12 @@ interface Interview {
       name: string;
     }[];
   };
-  interviewer: {
+  interviews: {
     id: string;
     name: string;
     email: string;
     role: string;
-  };
+  }[];
   scores: {
     id: string;
     category: string;
@@ -47,6 +47,11 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isEditingFeedback, setIsEditingFeedback] = useState(false);
+  const [editNotes, setEditNotes] = useState('');
+  const [editFeedback, setEditFeedback] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const fetchInterview = async () => {
@@ -93,7 +98,7 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
   // 获取面试类型显示名称
   const getTypeDisplayName = (type: string) => {
     const typeMap: Record<string, string> = {
-      PHONE: '电话面试',
+      PHONE: '线上面试',
       TECHNICAL: '技术面试',
       HR: 'HR面试',
       MANAGER: '主管面试',
@@ -145,24 +150,86 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
     if (!confirm('确定要删除此面试吗？此操作不可恢复。')) {
       return;
     }
-    
+
     setIsDeleting(true);
-    
+
     try {
       const response = await fetch(`/api/interviews/${params.id}`, {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
         throw new Error('删除面试失败');
       }
-      
+
       router.push('/interviews');
     } catch (err) {
       console.error('删除面试错误:', err);
       alert(err instanceof Error ? err.message : '删除面试失败');
       setIsDeleting(false);
     }
+  };
+
+  // 保存面试记录
+  const handleSaveNotes = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/interviews/${params.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: editNotes }),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存面试记录失败');
+      }
+
+      const updatedInterview = await response.json();
+      setInterview(updatedInterview);
+      setIsEditingNotes(false);
+    } catch (err) {
+      console.error('保存面试记录错误:', err);
+      alert(err instanceof Error ? err.message : '保存面试记录失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 保存面试反馈
+  const handleSaveFeedback = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/interviews/${params.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback: editFeedback }),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存面试反馈失败');
+      }
+
+      const updatedInterview = await response.json();
+      setInterview(updatedInterview);
+      setIsEditingFeedback(false);
+    } catch (err) {
+      console.error('保存面试反馈错误:', err);
+      alert(err instanceof Error ? err.message : '保存面试反馈失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 开始编辑面试记录
+  const startEditNotes = () => {
+    setEditNotes(interview?.notes || '');
+    setIsEditingNotes(true);
+  };
+
+  // 开始编辑面试反馈
+  const startEditFeedback = () => {
+    setEditFeedback(interview?.feedback || '');
+    setIsEditingFeedback(true);
   };
 
   if (loading) {
@@ -304,37 +371,104 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
 
           <div>
             <h3 className="text-lg font-medium mb-2">面试官信息</h3>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="mb-2">
-                <span className="font-medium">姓名:</span> {interview.interviewer.name}
-              </p>
-              <p className="mb-2">
-                <span className="font-medium">邮箱:</span> {interview.interviewer.email}
-              </p>
-              <p className="mb-2">
-                <span className="font-medium">角色:</span> {interview.interviewer.role}
-              </p>
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+              {interview.interviews.map((interviewer) => (
+                <div key={interviewer.id} className="flex items-center gap-2">
+                  <span className="font-medium">{interviewer.name}</span>
+                  <span className="text-muted-foreground">-</span>
+                  <span className="text-muted-foreground text-sm">{interviewer.email}</span>
+                  <span className="text-muted-foreground text-sm">({interviewer.role})</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {interview.notes && (
-          <div className="mb-6">
-            <h3 className="text-lg font-medium mb-2">面试准备笔记</h3>
+        {/* 面试准备笔记 */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-medium">面试准备笔记</h3>
+            {!isEditingNotes && interview.status === 'SCHEDULED' && (
+              <button onClick={startEditNotes} className="text-sm text-blue-600 hover:text-blue-800">
+                {interview.notes ? '编辑' : '添加'}
+              </button>
+            )}
+          </div>
+          {isEditingNotes ? (
+            <div className="space-y-2">
+              <textarea
+                className="w-full p-3 border rounded-lg min-h-[100px]"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="记录面试准备事项、需要关注的问题等..."
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveNotes}
+                  disabled={isSaving}
+                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isSaving ? '保存中...' : '保存'}
+                </button>
+                <button
+                  onClick={() => setIsEditingNotes(false)}
+                  className="px-3 py-1 border rounded hover:bg-gray-50"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          ) : interview.notes ? (
             <div className="bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">
               {interview.notes}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-muted-foreground text-sm">暂无笔记</p>
+          )}
+        </div>
 
-        {interview.feedback && (
-          <div className="mb-6">
-            <h3 className="text-lg font-medium mb-2">面试反馈</h3>
+        {/* 面试反馈 */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-medium">面试反馈</h3>
+            {!isEditingFeedback && interview.status === 'COMPLETED' && (
+              <button onClick={startEditFeedback} className="text-sm text-blue-600 hover:text-blue-800">
+                {interview.feedback ? '编辑' : '添加'}
+              </button>
+            )}
+          </div>
+          {isEditingFeedback ? (
+            <div className="space-y-2">
+              <textarea
+                className="w-full p-3 border rounded-lg min-h-[100px]"
+                value={editFeedback}
+                onChange={(e) => setEditFeedback(e.target.value)}
+                placeholder="记录面试反馈、候选人表现、优缺点等..."
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveFeedback}
+                  disabled={isSaving}
+                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isSaving ? '保存中...' : '保存'}
+                </button>
+                <button
+                  onClick={() => setIsEditingFeedback(false)}
+                  className="px-3 py-1 border rounded hover:bg-gray-50"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          ) : interview.feedback ? (
             <div className="bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">
               {interview.feedback}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-muted-foreground text-sm">暂无反馈</p>
+          )}
+        </div>
 
         {interview.scores && interview.scores.length > 0 && (
           <div className="mb-6">

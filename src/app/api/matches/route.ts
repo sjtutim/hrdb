@@ -13,7 +13,11 @@ export async function GET(request: NextRequest) {
             tags: true,
           },
         },
-        jobPosting: true,
+        jobPosting: {
+          include: {
+            tags: true,
+          },
+        },
       },
       orderBy: {
         matchScore: 'desc',

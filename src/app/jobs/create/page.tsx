@@ -7,10 +7,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { 
-  Briefcase, 
-  Sparkles, 
-  ArrowLeft, 
+import {
+  Briefcase,
+  Sparkles,
+  ArrowLeft,
   Save,
   Loader2,
   Check,
@@ -18,7 +18,9 @@ import {
   Building2,
   Calendar,
   Tag,
-  FileText
+  FileText,
+  Plus,
+  X
 } from 'lucide-react';
 
 import { Button } from '@/app/components/ui/button';
@@ -44,6 +46,131 @@ import {
 } from '@/app/components/ui/form';
 import { Separator } from '@/app/components/ui/separator';
 import Link from 'next/link';
+
+// 标签选择器组件 - 支持展开/收起和新增标签
+function TagSelector({
+  category,
+  categoryName,
+  tags,
+  selectedTags,
+  onToggle,
+  onAddTag,
+}: {
+  category: string;
+  categoryName: string;
+  tags: { id: string; name: string }[];
+  selectedTags: string[];
+  onToggle: (id: string) => void;
+  onAddTag: (category: string, name: string) => Promise<void>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [showInput, setShowInput] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const maxVisible = 100;
+  const hasMore = tags.length > maxVisible;
+  const visibleTags = expanded ? tags : tags.slice(0, maxVisible);
+
+  const handleAdd = async () => {
+    const trimmed = newTagName.trim();
+    if (!trimmed) return;
+    // 检查本地是否已存在同名标签
+    if (tags.some(t => t.name === trimmed)) {
+      setNewTagName('');
+      setShowInput(false);
+      return;
+    }
+    setAdding(true);
+    try {
+      await onAddTag(category, trimmed);
+      setNewTagName('');
+      setShowInput(false);
+    } catch {
+      // error handled by parent
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <h4 className="text-sm font-medium">{categoryName}</h4>
+        {!showInput && (
+          <button
+            type="button"
+            onClick={() => setShowInput(true)}
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            title="添加新标签"
+          >
+            <Plus className="h-3 w-3" />
+            新增
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {visibleTags.map((tag) => (
+          <button
+            key={tag.id}
+            type="button"
+            onClick={() => onToggle(tag.id)}
+            className={`px-2 py-0.5 rounded-full text-xs font-medium transition-all ${
+              selectedTags.includes(tag.id)
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+            }`}
+          >
+            {selectedTags.includes(tag.id) && (
+              <Check className="h-2.5 w-2.5 inline mr-0.5" />
+            )}
+            {tag.name}
+          </button>
+        ))}
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="px-2 py-0.5 rounded-full text-xs font-medium bg-transparent text-muted-foreground hover:text-foreground hover:bg-accent"
+          >
+            {expanded ? '收起' : `+${tags.length - maxVisible} 更多`}
+          </button>
+        )}
+        {showInput && (
+          <span className="inline-flex items-center gap-1">
+            <input
+              type="text"
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
+                if (e.key === 'Escape') { setShowInput(false); setNewTagName(''); }
+              }}
+              placeholder="输入标签名"
+              autoFocus
+              disabled={adding}
+              className="h-6 w-24 px-2 text-xs border rounded-full focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={adding || !newTagName.trim()}
+              className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowInput(false); setNewTagName(''); }}
+              className="h-6 w-6 inline-flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // 定义表单验证模式
 const formSchema = z.object({
@@ -106,6 +233,21 @@ export default function CreateJobPage() {
     setSelectedTags((prev) =>
       prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
     );
+  };
+
+  const handleAddTag = async (category: string, name: string) => {
+    const response = await fetch('/api/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, category }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || '创建标签失败');
+    }
+    const newTag = await response.json();
+    setAvailableTags((prev) => [...prev, newTag]);
+    setSelectedTags((prev) => [...prev, newTag.id]);
   };
 
   const handleGenerateAiSuggestions = async () => {
@@ -173,20 +315,19 @@ export default function CreateJobPage() {
     }
   };
 
-  const groupedTags = availableTags.reduce((acc, tag) => {
-    if (!acc[tag.category]) acc[tag.category] = [];
-    acc[tag.category].push(tag);
-    return acc;
-  }, {} as Record<string, Tag[]>);
-
   const categoryMap: Record<string, string> = {
     SKILL: '技能要求',
     INDUSTRY: '行业经验',
     EDUCATION: '教育背景',
     EXPERIENCE: '工作经验',
     PERSONALITY: '性格特质',
-    OTHER: '其他',
   };
+
+  const groupedTags = availableTags.reduce((acc, tag) => {
+    if (!acc[tag.category]) acc[tag.category] = [];
+    acc[tag.category].push(tag);
+    return acc;
+  }, Object.keys(categoryMap).reduce((acc, key) => ({ ...acc, [key]: [] }), {} as Record<string, Tag[]>));
 
   return (
     <div className="container py-8 max-w-4xl mx-auto">
@@ -259,28 +400,15 @@ export default function CreateJobPage() {
 
                 <div className="space-y-4">
                   {Object.entries(groupedTags).map(([category, tags]) => (
-                    <div key={category}>
-                      <h4 className="text-sm font-medium mb-2">{categoryMap[category] || category}</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {tags.map((tag) => (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={() => handleTagToggle(tag.id)}
-                            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                              selectedTags.includes(tag.id)
-                                ? 'bg-primary text-primary-foreground shadow-sm'
-                                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                            }`}
-                          >
-                            {selectedTags.includes(tag.id) && (
-                              <Check className="h-3 w-3 inline mr-1" />
-                            )}
-                            {tag.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <TagSelector
+                      key={category}
+                      category={category}
+                      categoryName={categoryMap[category] || category}
+                      tags={tags}
+                      selectedTags={selectedTags}
+                      onToggle={handleTagToggle}
+                      onAddTag={handleAddTag}
+                    />
                   ))}
                 </div>
               </div>

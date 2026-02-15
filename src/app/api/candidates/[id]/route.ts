@@ -18,6 +18,12 @@ export async function GET(
       include: {
         tags: true,
         certificates: true,
+        employeeRecord: {
+          select: {
+            id: true,
+            employeeId: true,
+          },
+        },
         recruiter: {
           select: {
             id: true,
@@ -27,7 +33,7 @@ export async function GET(
         },
         interviews: {
           include: {
-            interviewer: {
+            interviews: {
               select: {
                 id: true,
                 name: true,

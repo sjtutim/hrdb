@@ -27,6 +27,46 @@ const defaultTags = [
   { name: '全栈开发', category: 'SKILL' },
   { name: '数据分析', category: 'SKILL' },
   { name: '机器学习', category: 'SKILL' },
+  // IVD/体外诊断技能标签
+  { name: '体外诊断试剂', category: 'SKILL' },
+  { name: '免疫诊断', category: 'SKILL' },
+  { name: '分子诊断', category: 'SKILL' },
+  { name: '生化诊断', category: 'SKILL' },
+  { name: 'POCT', category: 'SKILL' },
+  { name: '医疗器械注册', category: 'SKILL' },
+  { name: '临床试验', category: 'SKILL' },
+  { name: '诊断试剂研发', category: 'SKILL' },
+  { name: 'IVD产品推广', category: 'SKILL' },
+  // 生化试剂技能标签
+  { name: '生物化学', category: 'SKILL' },
+  { name: '分子生物学', category: 'SKILL' },
+  { name: '细胞培养', category: 'SKILL' },
+  { name: '蛋白质纯化', category: 'SKILL' },
+  { name: '酶学检测', category: 'SKILL' },
+  { name: '免疫学技术', category: 'SKILL' },
+  { name: 'GMP', category: 'SKILL' },
+  { name: '实验室操作', category: 'SKILL' },
+  { name: '试剂生产', category: 'SKILL' },
+  // 销售技能标签
+  { name: '客户开发', category: 'SKILL' },
+  { name: '渠道销售', category: 'SKILL' },
+  { name: '大客户销售', category: 'SKILL' },
+  { name: '销售管理', category: 'SKILL' },
+  { name: '商务谈判', category: 'SKILL' },
+  { name: '销售业绩', category: 'SKILL' },
+  { name: '区域销售', category: 'SKILL' },
+  { name: '顾问式销售', category: 'SKILL' },
+  { name: '销售团队建设', category: 'SKILL' },
+  // 营销技能标签
+  { name: '市场推广', category: 'SKILL' },
+  { name: '品牌营销', category: 'SKILL' },
+  { name: '数字营销', category: 'SKILL' },
+  { name: '营销策划', category: 'SKILL' },
+  { name: '内容营销', category: 'SKILL' },
+  { name: '社交媒体营销', category: 'SKILL' },
+  { name: '市场分析', category: 'SKILL' },
+  { name: '产品推广', category: 'SKILL' },
+  { name: '展会策划', category: 'SKILL' },
   // 行业标签
   { name: '互联网', category: 'INDUSTRY' },
   { name: '金融', category: 'INDUSTRY' },
@@ -34,6 +74,11 @@ const defaultTags = [
   { name: '医疗', category: 'INDUSTRY' },
   { name: '制造业', category: 'INDUSTRY' },
   { name: '电商', category: 'INDUSTRY' },
+  { name: 'IVD/体外诊断', category: 'INDUSTRY' },
+  { name: '生化试剂', category: 'INDUSTRY' },
+  { name: '医疗器械', category: 'INDUSTRY' },
+  { name: '生物医药', category: 'INDUSTRY' },
+  { name: '医药流通', category: 'INDUSTRY' },
   // 教育标签
   { name: '本科', category: 'EDUCATION' },
   { name: '硕士', category: 'EDUCATION' },
@@ -83,7 +128,9 @@ async function main() {
   console.log('开始创建预设标签...');
   for (const tag of defaultTags) {
     const existingTag = await prisma.tag.findUnique({
-      where: { name: tag.name },
+      where: {
+        name_category: { name: tag.name, category: tag.category as any },
+      },
     });
 
     if (!existingTag) {

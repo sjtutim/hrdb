@@ -28,8 +28,10 @@ export async function PUT(
       );
     }
 
-    // 检查名称是否被其他标签使用
-    const nameTag = await prisma.tag.findUnique({ where: { name } });
+    // 检查名称是否被其他标签使用（同一类别下）
+    const nameTag = await prisma.tag.findUnique({
+      where: { name_category: { name, category } },
+    });
     if (nameTag && nameTag.id !== id) {
       return NextResponse.json(
         { error: '该标签名称已存在' },

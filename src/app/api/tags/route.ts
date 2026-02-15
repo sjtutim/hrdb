@@ -35,9 +35,14 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // 检查标签是否已存在
+    // 检查标签是否已存在（同一类别下检查）
     const existingTag = await prisma.tag.findUnique({
-      where: { name },
+      where: {
+        name_category: {
+          name,
+          category,
+        },
+      },
     });
     
     if (existingTag) {

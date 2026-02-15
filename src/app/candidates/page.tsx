@@ -2,22 +2,24 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { 
-  Search, 
-  Filter, 
-  Plus, 
-  MoreHorizontal, 
-  Mail, 
+import {
+  Search,
+  Filter,
+  Plus,
+  MoreHorizontal,
+  Mail,
   Phone,
   Star,
   ArrowUpDown,
   Download,
-  User
+  User,
+  BarChart3
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
+import TagCloudStats from '@/app/components/tag-cloud-stats';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,13 +64,13 @@ const statusMap: Record<string, { label: string; className: string }> = {
 
 // 评分显示组件
 function ScoreBadge({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-muted-foreground text-sm">-</span>;
-  
+  if (score === null || score === 0) return <span className="text-muted-foreground text-sm">-</span>;
+
   let className = 'score-badge ';
   if (score >= 80) className += 'score-high';
   else if (score >= 60) className += 'score-medium';
   else className += 'score-low';
-  
+
   return (
     <div className="flex items-center gap-1">
       <Star className="h-3.5 w-3.5 fill-current" />
@@ -80,7 +82,7 @@ function ScoreBadge({ score }: { score: number | null }) {
 // 候选人表格行
 function CandidateRow({ candidate }: { candidate: Candidate }) {
   const status = statusMap[candidate.status] || { label: candidate.status, className: 'bg-gray-100 text-gray-800' };
-  
+
   return (
     <tr className="group transition-colors hover:bg-muted/50">
       <td className="px-4 py-4">
@@ -152,9 +154,11 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
             <DropdownMenuItem asChild>
               <Link href={`/candidates/${candidate.id}/edit`}>编辑</Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={`/interviews/create?candidateId=${candidate.id}`}>安排面试</Link>
-            </DropdownMenuItem>
+            {!['ONBOARDING', 'PROBATION', 'EMPLOYED'].includes(candidate.status) && (
+              <DropdownMenuItem asChild>
+                <Link href={`/interviews/create?candidateId=${candidate.id}`}>安排面试</Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive">
               删除
@@ -186,6 +190,28 @@ export default function CandidatesPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'score' | 'date'>('date');
+  const [showTagCloud, setShowTagCloud] = useState(false);
+  const [tagStats, setTagStats] = useState<any[]>([]);
+  const [tagStatsPeople, setTagStatsPeople] = useState(0);
+  const [tagStatsLoading, setTagStatsLoading] = useState(false);
+
+  // 获取标签统计数据
+  const fetchTagStats = async () => {
+    try {
+      setTagStatsLoading(true);
+      const response = await fetch('/api/tags/stats?scope=candidates');
+      if (!response.ok) {
+        throw new Error('获取标签统计失败');
+      }
+      const data = await response.json();
+      setTagStats(data.categories || []);
+      setTagStatsPeople(data.totalPeople || 0);
+    } catch (err) {
+      console.error('获取标签统计错误:', err);
+    } finally {
+      setTagStatsLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchCandidates = async () => {
@@ -259,6 +285,19 @@ export default function CandidatesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            variant={showTagCloud ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setShowTagCloud(!showTagCloud);
+              if (!showTagCloud && tagStats.length === 0) {
+                fetchTagStats();
+              }
+            }}
+          >
+            <BarChart3 className={`h-4 w-4 mr-2 ${showTagCloud ? 'text-white' : ''}`} />
+            候选人群像
+          </Button>
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
             导出
@@ -279,18 +318,24 @@ export default function CandidatesPage() {
           size="sm"
           onClick={() => setStatusFilter('ALL')}
         >
-          全部 ({candidates.length})
+          全部
+          <span className="relative -top-2 ml-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-medium leading-none">{candidates.length}</span>
         </Button>
-        {Object.entries(statusMap).map(([key, { label }]) => (
-          <Button
-            key={key}
-            variant={statusFilter === key ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setStatusFilter(key)}
-          >
-            {label} ({statusCounts[key] || 0})
-          </Button>
-        ))}
+        {Object.entries(statusMap).map(([key, { label }]) => {
+          const count = statusCounts[key] || 0;
+          if (count === 0) return null;
+          return (
+            <Button
+              key={key}
+              variant={statusFilter === key ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter(key)}
+            >
+              {label}
+              <span className={`relative -top-2 ml-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-medium leading-none ${statusFilter === key ? 'bg-primary-foreground text-primary' : 'bg-muted-foreground/80 text-white'}`}>{count}</span>
+            </Button>
+          );
+        })}
       </div>
 
       {/* 筛选和搜索工具栏 */}
@@ -323,6 +368,24 @@ export default function CandidatesPage() {
         </CardContent>
       </Card>
 
+      {/* 候选人群像区域 */}
+      {showTagCloud && (
+        <Card className="mt-6">
+          <CardContent className="p-6">
+            {tagStatsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <p className="ml-2 text-muted-foreground">加载中...</p>
+              </div>
+            ) : tagStats.length > 0 ? (
+              <TagCloudStats data={tagStats} totalPeople={tagStatsPeople} title="候选人群像" />
+            ) : (
+              <p className="text-center text-muted-foreground py-8">暂无标签数据</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* 候选人列表 */}
       <Card>
         <CardContent className="p-0">
@@ -342,8 +405,8 @@ export default function CandidatesPage() {
                 {searchTerm || statusFilter !== 'ALL' ? '未找到匹配的候选人' : '暂无候选人'}
               </p>
               <p className="empty-state-description">
-                {searchTerm || statusFilter !== 'ALL' 
-                  ? '请尝试调整搜索条件或筛选器' 
+                {searchTerm || statusFilter !== 'ALL'
+                  ? '请尝试调整搜索条件或筛选器'
                   : '点击上方按钮添加您的第一位候选人'}
               </p>
               <Button className="mt-4" asChild>

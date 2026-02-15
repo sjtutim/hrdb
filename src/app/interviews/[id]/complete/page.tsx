@@ -102,7 +102,7 @@ export default function CompleteInterviewPage({ params }: { params: { id: string
   // 获取面试类型显示名称
   const getTypeDisplayName = (type: string) => {
     const typeMap: Record<string, string> = {
-      PHONE: '电话面试',
+      PHONE: '线上面试',
       TECHNICAL: '技术面试',
       HR: 'HR面试',
       MANAGER: '主管面试',
@@ -197,7 +197,7 @@ export default function CompleteInterviewPage({ params }: { params: { id: string
             面试时间: {new Date(interview.scheduledAt).toLocaleString('zh-CN')}
           </p>
           <p className="text-gray-600">
-            面试官: {interview.interviewer.name}
+            面试官: {(interview as any).interviews?.map((i: any) => i.name).join(', ') || '-'}
           </p>
         </div>
 

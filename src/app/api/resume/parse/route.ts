@@ -64,12 +64,15 @@ export async function POST(request: NextRequest) {
     if (resumeData.tags && resumeData.tags.length > 0) {
       for (const tagName of resumeData.tags) {
         // 查找或创建标签
+        const category = getCategoryForTag(tagName);
         const tag = await prisma.tag.upsert({
-          where: { name: tagName },
+          where: {
+            name_category: { name: tagName, category },
+          },
           update: {},
           create: {
             name: tagName,
-            category: getCategoryForTag(tagName),
+            category,
           },
         });
         

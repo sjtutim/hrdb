@@ -76,13 +76,17 @@ export async function POST(request: NextRequest) {
             tags: true,
           },
         },
-        jobPosting: true,
+        jobPosting: {
+          include: {
+            tags: true,
+          },
+        },
       },
       orderBy: {
         matchScore: 'desc',
       },
     });
-    
+
     return NextResponse.json(updatedMatches);
   } catch (error) {
     console.error('运行匹配错误:', error);

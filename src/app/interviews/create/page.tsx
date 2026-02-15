@@ -3,22 +3,24 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { 
-  Calendar, 
-  ArrowLeft, 
-  Clock, 
-  User, 
+import {
+  Calendar,
+  ArrowLeft,
+  Clock,
+  User,
   Briefcase,
   FileText,
   Save,
   Loader2,
   AlertCircle,
-  Check
+  Check,
+  MapPin
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Textarea } from '@/app/components/ui/textarea';
+import { Checkbox } from '@/app/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -51,7 +53,7 @@ interface JobPosting {
 }
 
 const interviewTypes = [
-  { value: 'PHONE', label: '电话面试', duration: '30分钟' },
+  { value: 'PHONE', label: '线上面试', duration: '30分钟' },
   { value: 'TECHNICAL', label: '技术面试', duration: '60-90分钟' },
   { value: 'HR', label: 'HR面试', duration: '30-45分钟' },
   { value: 'MANAGER', label: '主管面试', duration: '45-60分钟' },
@@ -72,10 +74,11 @@ export default function CreateInterviewPage() {
   
   // 表单状态
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
-  const [selectedInterviewerId, setSelectedInterviewerId] = useState<string>('');
+  const [selectedInterviewerIds, setSelectedInterviewerIds] = useState<string[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>(NO_JOB_VALUE);
   const [interviewType, setInterviewType] = useState<string>('TECHNICAL');
   const [scheduledAt, setScheduledAt] = useState<string>('');
+  const [location, setLocation] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
   useEffect(() => {
@@ -126,24 +129,25 @@ export default function CreateInterviewPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!selectedCandidateId || !selectedInterviewerId || !interviewType || !scheduledAt) {
+
+    if (!selectedCandidateId || selectedInterviewerIds.length === 0 || !interviewType || !scheduledAt) {
       setError('请填写所有必填字段');
       return;
     }
-    
+
     setSubmitting(true);
     setError(null);
-    
+
     try {
       const response = await fetch('/api/interviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           candidateId: selectedCandidateId,
-          interviewerId: selectedInterviewerId,
+          interviewerIds: selectedInterviewerIds,
           type: interviewType,
           scheduledAt,
+          location,
           notes,
         }),
       });
@@ -236,26 +240,36 @@ export default function CreateInterviewPage() {
 
                 {/* 面试官选择 */}
                 <div className="space-y-2">
-                  <Label htmlFor="interviewerId">
+                  <Label>
                     面试官 <span className="text-destructive">*</span>
                   </Label>
-                  <Select value={selectedInterviewerId} onValueChange={setSelectedInterviewerId}>
-                    <SelectTrigger id="interviewerId">
-                      <SelectValue placeholder="选择面试官" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {interviewers.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          <div className="flex items-center gap-2">
-                            <span>{user.name}</span>
-                            <span className="text-muted-foreground">-</span>
-                            <span className="text-muted-foreground">{user.email}</span>
-                            <Badge variant="outline" className="text-xs">{user.role}</Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="grid grid-cols-2 gap-2 border rounded-md p-3 max-h-48 overflow-y-auto">
+                    {interviewers.map((user) => (
+                      <div key={user.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`interviewer-${user.id}`}
+                          checked={selectedInterviewerIds.includes(user.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedInterviewerIds([...selectedInterviewerIds, user.id]);
+                            } else {
+                              setSelectedInterviewerIds(selectedInterviewerIds.filter(id => id !== user.id));
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`interviewer-${user.id}`}
+                          className="text-sm cursor-pointer flex-1"
+                        >
+                          {user.name}
+                          <span className="text-muted-foreground text-xs ml-1">({user.role})</span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedInterviewerIds.length === 0 && (
+                    <p className="text-xs text-muted-foreground">请至少选择一位面试官</p>
+                  )}
                 </div>
 
                 {/* 关联岗位 */}
@@ -326,6 +340,17 @@ export default function CreateInterviewPage() {
                     value={scheduledAt}
                     onChange={(e) => setScheduledAt(e.target.value)}
                     required
+                  />
+                </div>
+
+                {/* 面试地点 */}
+                <div className="space-y-2">
+                  <Label htmlFor="location">面试地点</Label>
+                  <Input
+                    id="location"
+                    placeholder="如：会议室A、线上（腾讯会议）、电话等"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
                   />
                 </div>
 
@@ -429,6 +454,13 @@ export default function CreateInterviewPage() {
                         minute: '2-digit',
                       })}
                     </span>
+                  </div>
+                )}
+
+                {location && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg border">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">{location}</span>
                   </div>
                 )}
               </CardContent>

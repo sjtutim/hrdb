@@ -87,11 +87,11 @@ interface InterviewSummary {
     name: string;
     email: string;
   };
-  interviewer: {
+  interviews: {
     id: string;
     name: string;
     email: string;
-  };
+  }[];
 }
 
 interface JobPostingSummary {
@@ -491,7 +491,7 @@ export default function DashboardPage() {
     ];
 
     const interviewTypeLabelMap: Record<string, string> = {
-      PHONE: '电话面试',
+      PHONE: '线上面试',
       TECHNICAL: '技术面试',
       HR: 'HR面试',
       MANAGER: '主管面试',
@@ -514,7 +514,7 @@ export default function DashboardPage() {
         candidate: item.candidate.name,
         position: candidateMap.get(item.candidateId)?.currentPosition || '待定岗位',
         time: formatRelativeDateTime(item.scheduledAt),
-        interviewer: item.interviewer.name,
+        interviewer: item.interviews?.map((i: any) => i.name).join(', ') || '-',
         type: interviewTypeLabelMap[item.type] || item.type,
       }));
 

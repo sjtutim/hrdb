@@ -21,7 +21,7 @@ model User {
   updatedAt      DateTime        @updatedAt
   candidates     Candidate[]     // 招聘人员关联的候选人
   jobPostings    JobPosting[]    // 创建的岗位
-  interviews     Interview[]     // 进行的面试
+  interviews     Interview[]     // 参与的面试（多对多）
   evaluations    Evaluation[]    // 提交的评估
 }
 
@@ -87,11 +87,13 @@ enum CandidateStatus {
 // 标签模型
 model Tag {
   id          String      @id @default(uuid())
-  name        String      @unique
+  name        String
   category    TagCategory // 标签类别
   createdAt   DateTime    @default(now())
   candidates  Candidate[] // 关联的候选人
   jobPostings JobPosting[] // 关联的岗位
+
+  @@unique([name, category]) // 同一类别下名称唯一
 }
 
 enum TagCategory {
@@ -148,12 +150,12 @@ model Interview {
   id            String           @id @default(uuid())
   candidateId   String
   candidate     Candidate        @relation(fields: [candidateId], references: [id])
-  interviewerId String
-  interviewer   User             @relation(fields: [interviewerId], references: [id])
+  interviews    User[]           // 面试官（多对多）
   type          InterviewType
   scheduledAt   DateTime
+  location      String?          // 面试地点
   completedAt   DateTime?
-  notes         String?          @db.Text // 面试记录
+  notes         String?          @db.Text // 面试记录/备注
   feedback      String?          @db.Text // 面试反馈
   decision      String?          // 面试决定
   status        InterviewStatus  @default(SCHEDULED)

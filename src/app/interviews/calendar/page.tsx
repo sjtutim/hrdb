@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import { Calendar, momentLocalizer, Views, View } from 'react-big-calendar';
 import moment from 'moment';
 import 'moment/locale/zh-cn';
@@ -23,7 +24,7 @@ interface Interview {
   title: string; // 用于日历显示
   candidateName: string;
   position: string;
-  interviewerName: string;
+  interviewerNames: string;
   start: Date; // 开始时间
   end: Date; // 结束时间
   scheduledAt: string; // ISO 日期字符串
@@ -33,13 +34,16 @@ interface Interview {
 }
 
 // 面试类型映射
-const interviewTypeMap = {
-  PHONE: { label: '电话面试', color: 'bg-blue-100 text-blue-800' },
+const interviewTypeMap: Record<string, { label: string; color: string }> = {
+  PHONE: { label: '线上面试', color: 'bg-blue-100 text-blue-800' },
   TECHNICAL: { label: '技术面试', color: 'bg-green-100 text-green-800' },
   HR: { label: 'HR面试', color: 'bg-purple-100 text-purple-800' },
   MANAGER: { label: '主管面试', color: 'bg-amber-100 text-amber-800' },
   PERSONALITY: { label: '性格测试', color: 'bg-pink-100 text-pink-800' },
 };
+
+// 获取面试类型中文名称
+const getInterviewTypeLabel = (type: string) => interviewTypeMap[type]?.label || type;
 
 // 面试状态映射
 const interviewStatusMap = {
@@ -177,7 +181,7 @@ export default function InterviewCalendarPage() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   const [interviewDetailsOpen, setInterviewDetailsOpen] = useState(false);
-  const [view, setView] = useState<View | 'year'>('week');
+  const [view, setView] = useState<View | 'year'>('month');
   const [date, setDate] = useState(new Date());
 
   // 处理选择面试事件
@@ -213,144 +217,38 @@ export default function InterviewCalendarPage() {
     };
   }, []);
 
-  // 模拟获取面试数据
+  // 从API获取面试数据
   useEffect(() => {
-    // 这里应该是从API获取数据，现在使用模拟数据
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth();
-    
-    // 生成30个面试数据，分布在当前月份的不同日期
-    const generateMockInterviews = () => {
-      const types: Array<'PHONE' | 'TECHNICAL' | 'HR' | 'MANAGER' | 'PERSONALITY'> = [
-        'PHONE', 'TECHNICAL', 'HR', 'MANAGER', 'PERSONALITY'
-      ];
-      const statuses: Array<'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'RESCHEDULED'> = [
-        'SCHEDULED', 'COMPLETED', 'CANCELLED', 'RESCHEDULED'
-      ];
-      const locations = ['线上会议', '会议室A', '会议室B', '会议室C', '会议室D'];
-      const positions = [
-        '前端开发工程师', '后端开发工程师', 'UI设计师', '产品经理', 
-        '数据分析师', '测试工程师', 'DevOps工程师', '项目经理'
-      ];
-      const interviewers = [
-        '李经理', '王主管', '赵总监', '孙经理', '周主管', 
-        '吴总监', '郑经理', '钱主管', '张总监', '刘经理'
-      ];
-      
-      const mockData: Interview[] = [];
-      
-      // 基础数据
-      const baseInterviews: Interview[] = [
-        {
-          id: '1',
-          title: '张三 - 前端开发工程师',
-          candidateName: '张三',
-          position: '前端开发工程师',
-          interviewerName: '李经理',
-          start: new Date(2025, 2, 5, 10, 0),
-          end: new Date(2025, 2, 5, 11, 0),
-          scheduledAt: new Date(2025, 2, 5, 10, 0).toISOString(),
-          location: '线上会议',
-          type: 'TECHNICAL',
-          status: 'SCHEDULED',
-        },
-        {
-          id: '2',
-          title: '李四 - 后端开发工程师',
-          candidateName: '李四',
-          position: '后端开发工程师',
-          interviewerName: '王主管',
-          start: new Date(2025, 2, 5, 14, 30),
-          end: new Date(2025, 2, 5, 15, 30),
-          scheduledAt: new Date(2025, 2, 5, 14, 30).toISOString(),
-          location: '会议室A',
-          type: 'TECHNICAL',
-          status: 'SCHEDULED',
-        },
-        {
-          id: '3',
-          title: '王五 - 产品经理',
-          candidateName: '王五',
-          position: '产品经理',
-          interviewerName: '赵总监',
-          start: new Date(2025, 2, 8, 11, 0),
-          end: new Date(2025, 2, 8, 12, 0),
-          scheduledAt: new Date(2025, 2, 8, 11, 0).toISOString(),
-          location: '会议室B',
-          type: 'MANAGER',
-          status: 'SCHEDULED',
-        },
-        {
-          id: '4',
-          title: '赵六 - UI设计师',
-          candidateName: '赵六',
-          position: 'UI设计师',
-          interviewerName: '孙经理',
-          start: new Date(2025, 2, 12, 15, 0),
-          end: new Date(2025, 2, 12, 16, 0),
-          scheduledAt: new Date(2025, 2, 12, 15, 0).toISOString(),
-          location: '线上会议',
-          type: 'HR',
-          status: 'SCHEDULED',
-        },
-        {
-          id: '5',
-          title: '钱七 - 数据分析师',
-          candidateName: '钱七',
-          position: '数据分析师',
-          interviewerName: '周主管',
-          start: new Date(2025, 2, 15, 10, 30),
-          end: new Date(2025, 2, 15, 11, 30),
-          scheduledAt: new Date(2025, 2, 15, 10, 30).toISOString(),
-          location: '会议室C',
-          type: 'PHONE',
-          status: 'SCHEDULED',
-        },
-      ];
-      
-      mockData.push(...baseInterviews);
-      
-      // 生成额外的随机面试数据
-      for (let i = 6; i <= 30; i++) {
-        // 随机生成当前月份内的日期
-        const day = Math.floor(Math.random() * 28) + 1;
-        const hour = Math.floor(Math.random() * 8) + 9; // 9点到16点
-        const minute = Math.random() > 0.5 ? 0 : 30;
-        
-        const startDate = new Date(2025, 2, day, hour, minute);
-        const endDate = new Date(2025, 2, day, hour + 1, minute);
-        
-        const firstName = String.fromCharCode(Math.floor(Math.random() * 20) + 0x9000);
-        const secondName = String.fromCharCode(Math.floor(Math.random() * 20) + 0x9000);
-        const candidateName = `${firstName}${secondName}`;
-        
-        const position = positions[Math.floor(Math.random() * positions.length)];
-        const type = types[Math.floor(Math.random() * types.length)];
-        const status = statuses[Math.floor(Math.random() * statuses.length)];
-        const location = locations[Math.floor(Math.random() * locations.length)];
-        const interviewerName = interviewers[Math.floor(Math.random() * interviewers.length)];
-        
-        mockData.push({
-          id: i.toString(),
-          title: `${candidateName} - ${position}`,
-          candidateName,
-          position,
-          interviewerName,
-          start: startDate,
-          end: endDate,
-          scheduledAt: startDate.toISOString(),
-          location,
-          type,
-          status,
-        });
+    const fetchInterviews = async () => {
+      try {
+        const res = await fetch('/api/interviews');
+        if (!res.ok) throw new Error('获取面试数据失败');
+        const data = await res.json();
+
+        // 转换为日历事件格式
+        const events: Interview[] = data
+          .filter((item: any) => item.status !== 'CANCELLED')
+          .map((item: any) => ({
+            id: item.id,
+            title: `${item.candidate?.name || '未知'} - ${getInterviewTypeLabel(item.type)}`,
+            candidateName: item.candidate?.name || '未知',
+            position: item.candidate?.currentPosition || '未知',
+            interviewerNames: item.interviews?.map((i: any) => i.name).join(', ') || '未知',
+            start: new Date(item.scheduledAt),
+            end: new Date(new Date(item.scheduledAt).getTime() + 60 * 60 * 1000), // 默认1小时
+            scheduledAt: item.scheduledAt,
+            location: item.location || '待定',
+            type: item.type,
+            status: item.status,
+          }));
+
+        setInterviews(events);
+      } catch (err) {
+        console.error('获取面试数据错误:', err);
       }
-      
-      return mockData;
     };
 
-    const mockInterviews = generateMockInterviews();
-    setInterviews(mockInterviews);
+    fetchInterviews();
   }, []);
 
   // 自定义工具栏
@@ -477,7 +375,7 @@ export default function InterviewCalendarPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">面试官</p>
-                  <p className="font-medium">{selectedInterview.interviewerName}</p>
+                  <p className="font-medium">{selectedInterview.interviewerNames}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">面试类型</p>
@@ -517,12 +415,13 @@ export default function InterviewCalendarPage() {
             >
               关闭
             </Button>
-            <Button
-              type="button"
-              onClick={handleCloseInterviewDetails}
-            >
-              编辑面试
-            </Button>
+            {selectedInterview && (
+              <Link href={`/interviews/${selectedInterview.id}`}>
+                <Button type="button">
+                  查看详情
+                </Button>
+              </Link>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
             email: true,
           },
         },
-        interviewer: {
+        interviews: {
           select: {
             id: true,
             name: true,
@@ -43,22 +43,25 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    
+
     // 验证必要字段
-    if (!data.candidateId || !data.interviewerId || !data.type || !data.scheduledAt) {
+    if (!data.candidateId || !data.interviewerIds || !data.type || !data.scheduledAt) {
       return NextResponse.json(
         { error: '缺少必要字段' },
         { status: 400 }
       );
     }
-    
+
     // 创建面试记录
     const interview = await prisma.interview.create({
       data: {
         candidateId: data.candidateId,
-        interviewerId: data.interviewerId,
+        interviews: {
+          connect: data.interviewerIds.map((id: string) => ({ id })),
+        },
         type: data.type,
         scheduledAt: new Date(data.scheduledAt),
+        location: data.location || null,
         notes: data.notes || null,
         status: 'SCHEDULED',
       },
@@ -70,7 +73,7 @@ export async function POST(request: NextRequest) {
             email: true,
           },
         },
-        interviewer: {
+        interviews: {
           select: {
             id: true,
             name: true,

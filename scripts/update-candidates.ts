@@ -83,7 +83,9 @@ async function main() {
                       experienceTags.includes(tagName) ? 'EXPERIENCE' : 'OTHER';
 
       const tag = await prisma.tag.upsert({
-        where: { name: tagName },
+        where: {
+          name_category: { name: tagName, category: category as any },
+        },
         update: {},
         create: { name: tagName, category: category as any }
       });

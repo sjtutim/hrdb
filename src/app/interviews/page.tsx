@@ -100,7 +100,7 @@ const statusConfig: Record<string, { label: string; className: string; icon: Rea
 
 // 面试类型配置
 const typeConfig: Record<string, { label: string; color: string }> = {
-  PHONE: { label: '电话面试', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  PHONE: { label: '线上面试', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
   TECHNICAL: { label: '技术面试', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
   HR: { label: 'HR面试', color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400' },
   MANAGER: { label: '主管面试', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
@@ -131,7 +131,7 @@ function InterviewRow({ interview }: { interview: Interview }) {
       <td className="px-4 py-4">
         <div className="flex items-center gap-2">
           <User className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-sm">{interview.interviewer.name}</span>
+          <span className="text-sm">{(interview as any).interviews?.map((i: any) => i.name).join(', ') || '-'}</span>
         </div>
       </td>
       <td className="px-4 py-4">
@@ -246,7 +246,7 @@ export default function InterviewsPage() {
       return (
         interview.candidate.name.toLowerCase().includes(searchLower) ||
         interview.candidate.email.toLowerCase().includes(searchLower) ||
-        interview.interviewer.name.toLowerCase().includes(searchLower)
+        (interview as any).interviews?.some((i: any) => i.name.toLowerCase().includes(searchLower))
       );
     }
     return true;
@@ -355,7 +355,7 @@ export default function InterviewsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">全部类型</SelectItem>
-                      <SelectItem value="PHONE">电话面试</SelectItem>
+                      <SelectItem value="PHONE">线上面试</SelectItem>
                       <SelectItem value="TECHNICAL">技术面试</SelectItem>
                       <SelectItem value="HR">HR面试</SelectItem>
                       <SelectItem value="MANAGER">主管面试</SelectItem>

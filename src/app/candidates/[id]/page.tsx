@@ -19,10 +19,22 @@ import {
   Trash2,
   ArrowLeft,
   Sparkles,
+  UserPlus,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/app/components/ui/dialog';
+import { Input } from '@/app/components/ui/input';
+import { Label } from '@/app/components/ui/label';
 
 // 候选人类型定义
 interface Candidate {
@@ -68,6 +80,10 @@ interface Candidate {
     aiEvaluation: string | null;
     jobPosting: { id: string; title: string; department: string; status: string };
   }[];
+  employeeRecord: {
+    id: string;
+    employeeId: string;
+  } | null;
 }
 
 // 状态映射
@@ -85,7 +101,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
 
 // 面试类型映射
 const interviewTypeMap: Record<string, string> = {
-  PHONE: '电话面试',
+  PHONE: '线上面试',
   TECHNICAL: '技术面试',
   HR: 'HR面试',
   MANAGER: '主管面试',
@@ -126,6 +142,16 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [onboardOpen, setOnboardOpen] = useState(false);
+  const [onboardLoading, setOnboardLoading] = useState(false);
+  const [onboardError, setOnboardError] = useState<string | null>(null);
+  const [onboardForm, setOnboardForm] = useState({
+    employeeId: '',
+    department: '',
+    position: '',
+    hireDate: '',
+    probationEndDate: '',
+  });
 
   useEffect(() => {
     const fetchCandidate = async () => {
@@ -172,6 +198,40 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
       console.error('删除候选人错误:', err);
       alert(err instanceof Error ? err.message : '删除候选人失败');
       setIsDeleting(false);
+    }
+  };
+
+  // 办理入职
+  const handleOnboard = async () => {
+    setOnboardLoading(true);
+    setOnboardError(null);
+
+    try {
+      const response = await fetch(`/api/candidates/${params.id}/onboard`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(onboardForm),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '办理入职失败');
+      }
+
+      setOnboardOpen(false);
+      setOnboardForm({ employeeId: '', department: '', position: '', hireDate: '', probationEndDate: '' });
+      // 刷新页面数据
+      setLoading(true);
+      const res = await fetch(`/api/candidates/${params.id}`);
+      if (res.ok) {
+        setCandidate(await res.json());
+      }
+      setLoading(false);
+      alert('入职办理成功！');
+    } catch (err) {
+      setOnboardError(err instanceof Error ? err.message : '办理入职失败');
+    } finally {
+      setOnboardLoading(false);
     }
   };
 
@@ -265,6 +325,80 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
               安排面试
             </Link>
           </Button>
+          {(candidate.status === 'OFFERED' || candidate.status === 'ONBOARDING') && !candidate.employeeRecord && (
+            <Dialog open={onboardOpen} onOpenChange={(open) => { setOnboardOpen(open); if (!open) setOnboardError(null); }}>
+              <DialogTrigger asChild>
+                <Button variant="default">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  办理入职
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>办理入职</DialogTitle>
+                  <DialogDescription>
+                    为候选人 {candidate.name} 办理入职手续，创建员工记录。
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {onboardError && (
+                    <p className="text-sm text-destructive">{onboardError}</p>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="employeeId">员工编号</Label>
+                    <Input
+                      id="employeeId"
+                      placeholder="请输入员工编号"
+                      value={onboardForm.employeeId}
+                      onChange={(e) => setOnboardForm({ ...onboardForm, employeeId: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="department">部门</Label>
+                    <Input
+                      id="department"
+                      placeholder="请输入部门"
+                      value={onboardForm.department}
+                      onChange={(e) => setOnboardForm({ ...onboardForm, department: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="position">职位</Label>
+                    <Input
+                      id="position"
+                      placeholder="请输入职位"
+                      value={onboardForm.position}
+                      onChange={(e) => setOnboardForm({ ...onboardForm, position: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="hireDate">入职日期</Label>
+                    <Input
+                      id="hireDate"
+                      type="date"
+                      value={onboardForm.hireDate}
+                      onChange={(e) => setOnboardForm({ ...onboardForm, hireDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="probationEndDate">试用期结束日期</Label>
+                    <Input
+                      id="probationEndDate"
+                      type="date"
+                      value={onboardForm.probationEndDate}
+                      onChange={(e) => setOnboardForm({ ...onboardForm, probationEndDate: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setOnboardOpen(false)}>取消</Button>
+                  <Button onClick={handleOnboard} disabled={onboardLoading}>
+                    {onboardLoading ? '提交中...' : '确认入职'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -398,7 +532,7 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
-                          面试官: {interview.interviewer.name} · {formatDate(interview.scheduledAt)}
+                          面试官: {(interview as any).interviews?.map((i: any) => i.name).join(', ') || '-'} · {formatDate(interview.scheduledAt)}
                         </p>
                       </div>
                       <Button variant="ghost" size="sm" asChild>
@@ -463,7 +597,7 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
                 <div className="text-center p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">总评分</p>
                   <p className="text-2xl font-bold">
-                    {candidate.totalScore !== null ? candidate.totalScore.toFixed(1) : '-'}
+                    {candidate.totalScore !== null && candidate.totalScore !== 0 ? candidate.totalScore.toFixed(1) : '-'}
                   </p>
                 </div>
               </div>

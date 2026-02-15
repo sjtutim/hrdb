@@ -2,31 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { 
-  Users, 
-  Search, 
-  Filter, 
+import {
+  Users,
+  Search,
+  Filter,
   MoreVertical,
-  Mail,
-  Phone,
   Building,
   Calendar,
   Award,
   AlertCircle,
   UserPlus,
-  Download
+  Download,
+  BarChart3
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Input } from '@/app/components/ui/input';
 import { Badge } from '@/app/components/ui/badge';
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/app/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/app/components/ui/avatar';
+import TagCloudStats from '@/app/components/tag-cloud-stats';
 
 interface Employee {
   id: string;
@@ -62,6 +62,28 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('');
+  const [showTagCloud, setShowTagCloud] = useState(false);
+  const [tagStats, setTagStats] = useState<any[]>([]);
+  const [tagStatsPeople, setTagStatsPeople] = useState(0);
+  const [tagStatsLoading, setTagStatsLoading] = useState(false);
+
+  // 获取标签统计数据
+  const fetchTagStats = async () => {
+    try {
+      setTagStatsLoading(true);
+      const response = await fetch('/api/tags/stats?scope=employees');
+      if (!response.ok) {
+        throw new Error('获取标签统计失败');
+      }
+      const data = await response.json();
+      setTagStats(data.categories || []);
+      setTagStatsPeople(data.totalPeople || 0);
+    } catch (err) {
+      console.error('获取标签统计错误:', err);
+    } finally {
+      setTagStatsLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchEmployees();
@@ -133,6 +155,19 @@ export default function EmployeesPage() {
           <p className="text-muted-foreground mt-1">管理已入职员工的人才档案</p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => {
+              setShowTagCloud(!showTagCloud);
+              if (!showTagCloud && tagStats.length === 0) {
+                fetchTagStats();
+              }
+            }}
+          >
+            <BarChart3 className="h-4 w-4" />
+            员工群像
+          </Button>
           <Button variant="outline" className="gap-2">
             <Download className="h-4 w-4" />
             导出
@@ -186,6 +221,24 @@ export default function EmployeesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 候选人群像区域 */}
+      {showTagCloud && (
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            {tagStatsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <p className="ml-2 text-muted-foreground">加载中...</p>
+              </div>
+            ) : tagStats.length > 0 ? (
+              <TagCloudStats data={tagStats} totalPeople={tagStatsPeople} title="人才库标签统计" />
+            ) : (
+              <p className="text-center text-muted-foreground py-8">暂无标签数据</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 搜索和筛选 */}
       <Card className="mb-6">
@@ -259,8 +312,8 @@ export default function EmployeesPage() {
                     </Avatar>
                     <div>
                       <div className="flex items-center gap-2">
-                        <Link 
-                          href={`/employees/${employee.id}`}
+                        <Link
+                          href={`/candidates/${employee.candidate.id}`}
                           className="font-medium hover:text-primary transition-colors"
                         >
                           {employee.candidate.name}
@@ -297,9 +350,11 @@ export default function EmployeesPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link href={`/employees/${employee.id}`}>查看详情</Link>
+                          <Link href={`/candidates/${employee.candidate.id}`}>查看详情</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem>编辑信息</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/candidates/${employee.candidate.id}/edit`}>编辑信息</Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem>查看绩效</DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive">离职处理</DropdownMenuItem>
                       </DropdownMenuContent>

@@ -2,18 +2,23 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { 
-  Target, 
-  Search, 
-  RefreshCw, 
-  Star, 
+import {
+  Target,
+  Search,
+  RefreshCw,
+  Star,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Sparkles,
   Briefcase,
   User,
   ArrowRight,
   Filter,
-  Zap
+  Zap,
+  Check,
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -39,6 +44,7 @@ interface JobMatch {
     id: string;
     title: string;
     department: string;
+    tags: { id: string; name: string }[];
   };
 }
 
@@ -86,8 +92,87 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
+// 关键字对比组件
+function TagComparison({ match }: { match: JobMatch }) {
+  const candidateTagNames = match.candidate.tags.map(t => t.name);
+  const jobTagNames = (match.jobPosting.tags || []).map(t => t.name);
+
+  const matchedTags = candidateTagNames.filter(t => jobTagNames.includes(t));
+  const missingTags = jobTagNames.filter(t => !candidateTagNames.includes(t));
+  const extraTags = candidateTagNames.filter(t => !jobTagNames.includes(t));
+
+  return (
+    <div className="space-y-3">
+      {matchedTags.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Check className="h-3.5 w-3.5 text-emerald-500" />
+            <span className="text-xs font-medium text-emerald-700">匹配的技能 ({matchedTags.length})</span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {matchedTags.map(tag => (
+              <Badge key={tag} className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+      {missingTags.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <X className="h-3.5 w-3.5 text-red-500" />
+            <span className="text-xs font-medium text-red-700">缺少的技能 ({missingTags.length})</span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {missingTags.map(tag => (
+              <Badge key={tag} variant="outline" className="text-xs bg-red-50 text-red-600 border-red-200">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+      {extraTags.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <AlertCircle className="h-3.5 w-3.5 text-blue-500" />
+            <span className="text-xs font-medium text-blue-700">额外技能 ({extraTags.length})</span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {extraTags.map(tag => (
+              <Badge key={tag} variant="outline" className="text-xs bg-blue-50 text-blue-600 border-blue-200">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 匹配卡片组件
 function MatchCard({ match }: { match: JobMatch }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // 解析 AI 评估内容的各部分
+  const parseEvaluation = (text: string | null) => {
+    if (!text) return { summary: '', sections: [] as { label: string; content: string }[] };
+    const parts = text.split('\n\n').filter(Boolean);
+    const summary = parts[0] || '';
+    const sections = parts.slice(1).map(part => {
+      const colonIdx = part.indexOf(':');
+      if (colonIdx > 0 && colonIdx < 10) {
+        return { label: part.substring(0, colonIdx).trim(), content: part.substring(colonIdx + 1).trim() };
+      }
+      return { label: '', content: part.trim() };
+    });
+    return { summary, sections };
+  };
+
+  const evaluation = parseEvaluation(match.aiEvaluation);
+
   return (
     <Card className="card-hover group">
       <CardContent className="p-5">
@@ -98,7 +183,7 @@ function MatchCard({ match }: { match: JobMatch }) {
               <div>
                 <h3 className="font-semibold text-foreground">{match.candidate.name}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {match.candidate.currentPosition || '职位未知'} 
+                  {match.candidate.currentPosition || '职位未知'}
                   {match.candidate.currentCompany && ` · ${match.candidate.currentCompany}`}
                 </p>
               </div>
@@ -107,35 +192,65 @@ function MatchCard({ match }: { match: JobMatch }) {
                 {match.jobPosting.department}
               </Badge>
             </div>
-            
+
             <div className="mt-3">
               <p className="text-sm font-medium">{match.jobPosting.title}</p>
             </div>
-            
-            {match.candidate.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-3">
-                {match.candidate.tags.slice(0, 4).map((tag) => (
-                  <Badge key={tag.id} variant="secondary" className="text-xs">
-                    {tag.name}
-                  </Badge>
-                ))}
-                {match.candidate.tags.length > 4 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{match.candidate.tags.length - 4}
-                  </Badge>
-                )}
+
+            {/* 简要评估 + 展开按钮 */}
+            {evaluation.summary && (
+              <div className="mt-3 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <Sparkles className="h-3.5 w-3.5 inline mr-1 text-primary" />
+                    {evaluation.summary}
+                  </div>
+                  <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="shrink-0 p-0.5 rounded hover:bg-muted transition-colors"
+                  >
+                    {expanded ? (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                </div>
               </div>
             )}
-            
-            {match.aiEvaluation && (
-              <div className="mt-3 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground line-clamp-2">
-                <Sparkles className="h-3.5 w-3.5 inline mr-1 text-primary" />
-                {match.aiEvaluation}
+
+            {/* 展开的详细内容 */}
+            {expanded && (
+              <div className="mt-3 space-y-4">
+                {/* 关键字对比 */}
+                <div className="p-3 rounded-lg border bg-card">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">技能关键字对比</h4>
+                  <TagComparison match={match} />
+                </div>
+
+                {/* AI 评估详情 */}
+                {evaluation.sections.length > 0 && (
+                  <div className="p-3 rounded-lg border bg-card space-y-2">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">AI 评估详情</h4>
+                    {evaluation.sections.map((section, idx) => (
+                      <div key={idx} className="text-sm">
+                        {section.label ? (
+                          <>
+                            <span className="font-medium text-foreground">{section.label}:</span>{' '}
+                            <span className="text-muted-foreground">{section.content}</span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">{section.content}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
-        
+
         <div className="flex items-center justify-between mt-4 pt-4 border-t">
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
@@ -143,12 +258,23 @@ function MatchCard({ match }: { match: JobMatch }) {
               {match.candidate.email}
             </span>
           </div>
-          <Button variant="ghost" size="sm" className="h-8 gap-1" asChild>
-            <Link href={`/interviews/create?candidateId=${match.candidateId}&jobId=${match.jobPostingId}`}>
-              安排面试
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? '收起' : '查看详情'}
+              {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 gap-1" asChild>
+              <Link href={`/interviews/create?candidateId=${match.candidateId}&jobId=${match.jobPostingId}`}>
+                安排面试
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

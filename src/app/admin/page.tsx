@@ -645,6 +645,7 @@ function RoleManagement() {
   const [permissions, setPermissions] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   const allMenuKeys = ALL_MENU_KEYS
 
@@ -679,6 +680,7 @@ function RoleManagement() {
 
   const handleSave = async (role: string) => {
     setSaving(role)
+    setSuccessMsg(null)
     try {
       const menuKeys = getMenuKeys(role)
       const res = await fetch("/api/role-permissions", {
@@ -686,7 +688,10 @@ function RoleManagement() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role, menuKeys }),
       })
-      if (!res.ok) {
+      if (res.ok) {
+        setSuccessMsg(`${role} 权限保存成功`)
+        setTimeout(() => setSuccessMsg(null), 3000)
+      } else {
         console.error("保存失败")
       }
     } catch {
@@ -706,6 +711,12 @@ function RoleManagement() {
         <h2 className="text-lg font-semibold">角色菜单权限</h2>
         <p className="text-sm text-muted-foreground">配置每个角色可以看到的导航菜单</p>
       </div>
+
+      {successMsg && (
+        <div className="p-3 bg-green-100 text-green-700 rounded-md">
+          {successMsg}
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         {ROLES.map((role) => {

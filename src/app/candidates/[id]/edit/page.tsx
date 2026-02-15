@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -34,9 +34,26 @@ interface Tag {
   category: string;
 }
 
-export default function CreateCandidatePage() {
+interface Candidate {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  education: string | null;
+  workExperience: string | null;
+  currentPosition: string | null;
+  currentCompany: string | null;
+  aiEvaluation: string | null;
+  status: string;
+  tags: { id: string }[];
+}
+
+export default function EditCandidatePage() {
   const router = useRouter();
+  const params = useParams();
+  const candidateId = params.id as string;
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -57,18 +74,49 @@ export default function CreateCandidatePage() {
   });
 
   useEffect(() => {
-    const fetchTags = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch('/api/tags');
-        if (!response.ok) throw new Error('获取标签失败');
-        const data = await response.json();
-        setAvailableTags(data);
+        // 获取标签列表
+        const tagsResponse = await fetch('/api/tags');
+        if (!tagsResponse.ok) throw new Error('获取标签失败');
+        const tagsData = await tagsResponse.json();
+        setAvailableTags(tagsData);
+
+        // 获取候选人数据
+        const candidateResponse = await fetch(`/api/candidates/${candidateId}`);
+        if (!candidateResponse.ok) {
+          if (candidateResponse.status === 404) {
+            throw new Error('候选人不存在');
+          }
+          throw new Error('获取候选人失败');
+        }
+        const candidateData: Candidate = await candidateResponse.json();
+
+        // 填充表单
+        form.reset({
+          name: candidateData.name || '',
+          email: candidateData.email || '',
+          phone: candidateData.phone || '',
+          education: candidateData.education || '',
+          workExperience: candidateData.workExperience || '',
+          currentPosition: candidateData.currentPosition || '',
+          currentCompany: candidateData.currentCompany || '',
+          aiEvaluation: candidateData.aiEvaluation || '',
+          status: candidateData.status as any,
+        });
+
+        // 设置已选标签
+        setSelectedTags(candidateData.tags?.map((t) => t.id) || []);
       } catch (err) {
-        console.error('获取标签错误:', err);
+        console.error('获取数据错误:', err);
+        setError(err instanceof Error ? err.message : '获取数据失败');
+      } finally {
+        setInitialLoading(false);
       }
     };
-    fetchTags();
-  }, []);
+
+    fetchData();
+  }, [candidateId, form]);
 
   const handleTagToggle = (tagId: string) => {
     setSelectedTags((prev) =>
@@ -81,8 +129,8 @@ export default function CreateCandidatePage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/candidates', {
-        method: 'POST',
+      const response = await fetch(`/api/candidates/${candidateId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...values,
@@ -92,13 +140,13 @@ export default function CreateCandidatePage() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || '创建候选人失败');
+        throw new Error(data.error || '更新候选人失败');
       }
 
-      router.push('/candidates');
+      router.push(`/candidates/${candidateId}`);
     } catch (err) {
-      console.error('创建候选人错误:', err);
-      setError(err instanceof Error ? err.message : '创建候选人失败');
+      console.error('更新候选人错误:', err);
+      setError(err instanceof Error ? err.message : '更新候选人失败');
     } finally {
       setLoading(false);
     }
@@ -122,9 +170,17 @@ export default function CreateCandidatePage() {
     return categoryMap[category] || category;
   };
 
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-gray-500">加载中...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">添加候选人</h1>
+      <h1 className="text-2xl font-bold mb-6">编辑候选人</h1>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
         <Form {...form}>
@@ -367,7 +423,7 @@ export default function CreateCandidatePage() {
                   loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
-                {loading ? '提交中...' : '添加候选人'}
+                {loading ? '保存中...' : '保存修改'}
               </button>
             </div>
           </form>
