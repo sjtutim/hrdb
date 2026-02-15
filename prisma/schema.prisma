@@ -42,7 +42,8 @@ model Candidate {
   workExperience    String?         @db.Text // 工作经验（文本描述）
   currentPosition   String?
   currentCompany    String?
-  resumeUrl         String?         // 简历文件URL
+  resumeUrl         String?         // 简历文件URL（MinIO objectName）
+  resumeFileName    String?         // 简历原始文件名
   resumeContent     String?         @db.Text // 简历内容（Markdown格式）
   initialScore      Float?          // 初始评分
   totalScore        Float?          // 总评分

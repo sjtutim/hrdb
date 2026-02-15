@@ -144,6 +144,7 @@ export async function PUT(
         currentPosition: data.currentPosition !== undefined ? data.currentPosition : existingCandidate.currentPosition,
         currentCompany: data.currentCompany !== undefined ? data.currentCompany : existingCandidate.currentCompany,
         resumeUrl: data.resumeUrl !== undefined ? data.resumeUrl : existingCandidate.resumeUrl,
+        resumeFileName: data.resumeFileName !== undefined ? data.resumeFileName : (existingCandidate as any).resumeFileName,
         resumeContent: data.resumeContent !== undefined ? data.resumeContent : existingCandidate.resumeContent,
         initialScore: data.initialScore !== undefined ? data.initialScore : existingCandidate.initialScore,
         totalScore: data.totalScore !== undefined ? data.totalScore : existingCandidate.totalScore,

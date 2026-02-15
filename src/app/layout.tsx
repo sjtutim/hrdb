@@ -6,7 +6,7 @@ import ConditionalNavbar from './components/layout/ConditionalNavbar';
 import { ThemeProvider } from './components/ui/theme-provider';
 
 export const metadata = {
-  title: '顿慧人才库 - 人才管理系统',
+  title: '企业人才库 - 人才管理系统',
   description: 'AI驱动的人才获取和管理平台',
 };
 

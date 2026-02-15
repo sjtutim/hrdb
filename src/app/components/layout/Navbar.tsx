@@ -116,9 +116,9 @@ const Navbar = () => {
         <div className="flex items-center gap-2">
           <Link href="/dashboard" className="flex items-center gap-2 group">
             <div className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center">
-              <img src="/logo.png" alt="顿慧人才库" width={32} height={32} className="object-cover" />
+              <img src="/logo.png" alt="企业人才库" width={32} height={32} className="object-cover" />
             </div>
-            <span className="font-bold text-xl hidden sm:inline">顿慧人才库</span>
+            <span className="font-bold text-xl hidden sm:inline">企业人才库</span>
           </Link>
 
           {/* AI Badge */}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -44,6 +44,8 @@ interface Candidate {
   currentPosition: string | null;
   currentCompany: string | null;
   aiEvaluation: string | null;
+  resumeUrl: string | null;
+  resumeFileName: string | null;
   status: string;
   tags: { id: string }[];
 }
@@ -57,6 +59,12 @@ export default function EditCandidatePage() {
   const [error, setError] = useState<string | null>(null);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [resumeUrl, setResumeUrl] = useState<string | null>(null);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -107,6 +115,9 @@ export default function EditCandidatePage() {
 
         // 设置已选标签
         setSelectedTags(candidateData.tags?.map((t) => t.id) || []);
+        // 设置简历URL
+        setResumeUrl(candidateData.resumeUrl || null);
+        setResumeFileName(candidateData.resumeFileName || null);
       } catch (err) {
         console.error('获取数据错误:', err);
         setError(err instanceof Error ? err.message : '获取数据失败');
@@ -122,6 +133,87 @@ export default function EditCandidatePage() {
     setSelectedTags((prev) =>
       prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
     );
+  };
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('只支持PDF和DOCX格式的文件');
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('candidateId', candidateId);
+
+      const response = await fetch('/api/resume/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '上传失败');
+      }
+
+      const data = await response.json();
+      setResumeUrl(data.objectName);
+      setResumeFileName(data.originalName);
+    } catch (err) {
+      console.error('上传简历错误:', err);
+      setUploadError(err instanceof Error ? err.message : '上传简历失败');
+    } finally {
+      setUploading(false);
+      // 清空 input 以便再次选择同一文件
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const getResumeFileType = (url: string | null): 'pdf' | 'docx' | null => {
+    if (!url) return null;
+    if (url.endsWith('.pdf')) return 'pdf';
+    if (url.endsWith('.docx')) return 'docx';
+    return null;
+  };
+
+  const handleResumeDelete = async () => {
+    if (!confirm('确定要删除简历文件吗？')) return;
+
+    setDeleting(true);
+    setUploadError(null);
+
+    try {
+      const response = await fetch('/api/resume/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '删除失败');
+      }
+
+      setResumeUrl(null);
+      setResumeFileName(null);
+    } catch (err) {
+      console.error('删除简历错误:', err);
+      setUploadError(err instanceof Error ? err.message : '删除简历失败');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -368,6 +460,93 @@ export default function EditCandidatePage() {
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* 简历上传 */}
+            <div>
+              <h3 className="text-lg font-medium mb-2">简历文件</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                支持上传 PDF 和 DOCX 格式的简历文件
+              </p>
+
+              {resumeUrl && (
+                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-md flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="text-sm font-medium truncate">
+                      {resumeFileName || resumeUrl.split('/').pop()}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                      {getResumeFileType(resumeUrl)?.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {getResumeFileType(resumeUrl) === 'pdf' ? (
+                      <a
+                        href={`/api/resume/file/${encodeURIComponent(resumeUrl)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        预览
+                      </a>
+                    ) : (
+                      <a
+                        href={`/api/resume/file/${encodeURIComponent(resumeUrl)}`}
+                        download
+                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        下载
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleResumeDelete}
+                      disabled={deleting}
+                      className="text-sm text-red-500 hover:text-red-700 hover:underline"
+                    >
+                      {deleting ? '删除中...' : '删除'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-4">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={handleResumeUpload}
+                  className="hidden"
+                  id="resume-upload"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || deleting}
+                  className={`px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-md text-sm ${
+                    uploading || deleting
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer'
+                  }`}
+                >
+                  {uploading ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      上传中...
+                    </span>
+                  ) : resumeUrl ? '重新上传简历' : '点击上传简历'}
+                </button>
+              </div>
+
+              {uploadError && (
+                <p className="mt-2 text-sm text-red-600">{uploadError}</p>
+              )}
             </div>
 
             {Object.keys(groupedTags).length > 0 && (

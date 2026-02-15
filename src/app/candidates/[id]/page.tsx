@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -20,6 +20,9 @@ import {
   ArrowLeft,
   Sparkles,
   UserPlus,
+  Upload,
+  Download,
+  Eye,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
@@ -47,6 +50,7 @@ interface Candidate {
   currentPosition: string | null;
   currentCompany: string | null;
   resumeUrl: string | null;
+  resumeFileName: string | null;
   resumeContent: string | null;
   initialScore: number | null;
   totalScore: number | null;
@@ -152,6 +156,82 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
     hireDate: '',
     probationEndDate: '',
   });
+  const [resumeUploading, setResumeUploading] = useState(false);
+  const [resumeUploadError, setResumeUploadError] = useState<string | null>(null);
+  const [resumeDeleting, setResumeDeleting] = useState(false);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const resumeInputRef = useRef<HTMLInputElement>(null);
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !candidate) return;
+
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      setResumeUploadError('只支持PDF和DOCX格式的文件');
+      return;
+    }
+
+    setResumeUploading(true);
+    setResumeUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('candidateId', candidate.id);
+
+      const response = await fetch('/api/resume/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '上传失败');
+      }
+
+      const data = await response.json();
+      setCandidate({ ...candidate, resumeUrl: data.objectName, resumeFileName: data.originalName });
+    } catch (err) {
+      console.error('上传简历错误:', err);
+      setResumeUploadError(err instanceof Error ? err.message : '上传简历失败');
+    } finally {
+      setResumeUploading(false);
+      if (resumeInputRef.current) {
+        resumeInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleResumeDelete = async () => {
+    if (!candidate || !confirm('确定要删除简历文件吗？')) return;
+
+    setResumeDeleting(true);
+    setResumeUploadError(null);
+
+    try {
+      const response = await fetch('/api/resume/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId: candidate.id }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '删除失败');
+      }
+
+      setCandidate({ ...candidate, resumeUrl: null, resumeFileName: null });
+    } catch (err) {
+      console.error('删除简历错误:', err);
+      setResumeUploadError(err instanceof Error ? err.message : '删除简历失败');
+    } finally {
+      setResumeDeleting(false);
+    }
+  };
 
   useEffect(() => {
     const fetchCandidate = async () => {
@@ -476,6 +556,8 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
             </CardContent>
           </Card>
 
+
+
           {/* 简历内容 */}
           {candidate.resumeContent && (
             <Card>
@@ -578,6 +660,125 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
 
         {/* 右侧列 - 评分、标签等 */}
         <div className="space-y-6">
+          {/* 简历文件 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                简历文件
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {candidate.resumeUrl ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Badge className={candidate.resumeUrl.endsWith('.pdf') ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}>
+                      {candidate.resumeUrl.endsWith('.pdf') ? 'PDF' : 'DOCX'}
+                    </Badge>
+                    <span className="text-sm truncate" title={candidate.resumeFileName || ''}>
+                      {candidate.resumeFileName || candidate.resumeUrl.split('/').pop()}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {candidate.resumeUrl.endsWith('.pdf') ? (
+                      <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}>
+                        <Eye className="h-4 w-4 mr-1" />
+                        预览
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={`/api/resume/file/${encodeURIComponent(candidate.resumeUrl)}`} download>
+                          <Download className="h-4 w-4 mr-1" />
+                          下载
+                        </a>
+                      </Button>
+                    )}
+                    <input
+                      ref={resumeInputRef}
+                      type="file"
+                      accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={handleResumeUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => resumeInputRef.current?.click()}
+                      disabled={resumeUploading || resumeDeleting}
+                    >
+                      {resumeUploading ? (
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current" />
+                          上传中...
+                        </span>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-1" />
+                          重新上传
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={handleResumeDelete}
+                      disabled={resumeDeleting || resumeUploading}
+                    >
+                      {resumeDeleting ? (
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current" />
+                          删除中...
+                        </span>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          删除
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {resumeUploadError && (
+                    <p className="text-sm text-destructive">{resumeUploadError}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed rounded-lg">
+                  <FileText className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground mb-3">暂未上传简历</p>
+                  <input
+                    ref={resumeInputRef}
+                    type="file"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={handleResumeUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => resumeInputRef.current?.click()}
+                    disabled={resumeUploading}
+                  >
+                    {resumeUploading ? (
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current" />
+                        上传中...
+                      </span>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-1" />
+                        上传简历
+                      </>
+                    )}
+                  </Button>
+                  {resumeUploadError && (
+                    <p className="mt-2 text-sm text-destructive">{resumeUploadError}</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* 评分 */}
           <Card>
             <CardHeader>
@@ -713,6 +914,25 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
           )}
         </div>
       </div>
+
+      {/* PDF 预览弹窗 */}
+      {pdfPreviewOpen && candidate.resumeUrl && (
+        <Dialog open={pdfPreviewOpen} onOpenChange={setPdfPreviewOpen}>
+          <DialogContent className="max-w-4xl w-[90vw] h-[85vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-2">
+              <DialogTitle>简历预览</DialogTitle>
+              <DialogDescription>{candidate.resumeUrl.split('/').pop()}</DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 px-6 pb-6 min-h-0">
+              <iframe
+                src={`/api/resume/file/${encodeURIComponent(candidate.resumeUrl)}`}
+                className="w-full h-full border rounded-lg"
+                title="简历预览"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

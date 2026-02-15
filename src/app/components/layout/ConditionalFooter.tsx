@@ -6,22 +6,22 @@ import { Users, Heart } from "lucide-react"
 
 export default function ConditionalFooter() {
   const pathname = usePathname()
-  
+
   // 如果当前路径是登录页面或注册页面，则不显示页脚
   const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/forgot-password'
-  
+
   // 如果是认证页面，则不显示页脚
   if (isAuthPage) {
     return null
   }
-  
+
   const footerLinks = [
     { label: '服务条款', href: '/terms' },
     { label: '隐私政策', href: '/privacy' },
     { label: '帮助中心', href: '/help' },
     { label: '联系我们', href: '/contact' },
   ]
-  
+
   return (
     <footer className="border-t bg-muted/30">
       <div className="container py-8">
@@ -32,13 +32,13 @@ export default function ConditionalFooter() {
               <Users className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-sm font-medium">顿慧人才库</p>
+              <p className="text-sm font-medium">企业人才库</p>
               <p className="text-xs text-muted-foreground">
                 &copy; {new Date().getFullYear()} 保留所有权利
               </p>
             </div>
           </div>
-          
+
           {/* Links */}
           <nav className="flex items-center gap-6">
             {footerLinks.map((link) => (
@@ -51,7 +51,7 @@ export default function ConditionalFooter() {
               </Link>
             ))}
           </nav>
-          
+
           {/* Made with */}
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span>用</span>

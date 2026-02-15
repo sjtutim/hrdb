@@ -7,11 +7,11 @@ import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import Link from "next/link"
-import { 
-  Loader2, 
-  Mail, 
-  Lock, 
-  Eye, 
+import {
+  Loader2,
+  Mail,
+  Lock,
+  Eye,
   EyeOff,
   ArrowRight,
   Users,
@@ -93,24 +93,24 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xKSIvPjwvc3ZnPg==')] opacity-30"></div>
         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
-        
+
         <div className="relative z-10 flex flex-col justify-center px-12 xl:px-24">
           <div className="flex items-center gap-3 mb-8">
             <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center">
               <Users className="h-7 w-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">顿慧人才库</h1>
+              <h1 className="text-2xl font-bold text-white">企业人才库</h1>
               <p className="text-white/70 text-sm">AI驱动的人才管理平台</p>
             </div>
           </div>
-          
+
           <h2 className="text-4xl xl:text-5xl font-bold text-white mb-6 leading-tight">
             智能招聘
             <br />
             从这里开始
           </h2>
-          
+
           <p className="text-lg text-white/80 mb-12 max-w-md">
             利用AI技术提升招聘效率，让人才获取变得简单高效
           </p>
@@ -139,7 +139,7 @@ export default function LoginPage() {
             <div className="inline-flex items-center justify-center h-16 w-16 rounded-xl bg-primary mb-4">
               <Users className="h-8 w-8 text-primary-foreground" />
             </div>
-            <h1 className="text-2xl font-bold">顿慧人才库</h1>
+            <h1 className="text-2xl font-bold">企业人才库</h1>
             <p className="text-muted-foreground">AI驱动的人才管理平台</p>
           </div>
 
@@ -169,10 +169,10 @@ export default function LoginPage() {
                         <FormControl>
                           <div className="relative">
                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input 
-                              placeholder="your.email@example.com" 
-                              className="pl-10" 
-                              {...field} 
+                            <Input
+                              placeholder="your.email@example.com"
+                              className="pl-10"
+                              {...field}
                             />
                           </div>
                         </FormControl>
@@ -189,11 +189,11 @@ export default function LoginPage() {
                         <FormControl>
                           <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input 
+                            <Input
                               type={showPassword ? "text" : "password"}
-                              placeholder="••••••••" 
-                              className="pl-10 pr-10" 
-                              {...field} 
+                              placeholder="••••••••"
+                              className="pl-10 pr-10"
+                              {...field}
                             />
                             <button
                               type="button"
@@ -212,13 +212,13 @@ export default function LoginPage() {
                       </FormItem>
                     )}
                   />
-                  
+
                   {error && (
                     <div className="p-3 text-sm font-medium text-destructive bg-destructive/10 rounded-md border border-destructive/20">
                       {error}
                     </div>
                   )}
-                  
+
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? (
                       <>

@@ -49,8 +49,10 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isEditingFeedback, setIsEditingFeedback] = useState(false);
+  const [isEditingTime, setIsEditingTime] = useState(false);
   const [editNotes, setEditNotes] = useState('');
   const [editFeedback, setEditFeedback] = useState('');
+  const [editScheduledAt, setEditScheduledAt] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -232,6 +234,34 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
     setIsEditingFeedback(true);
   };
 
+  // 开始编辑面试时间
+  const startEditTime = () => {
+    if (!interview) return;
+    setEditScheduledAt(new Date(interview.scheduledAt).toISOString().slice(0, 16));
+    setIsEditingTime(true);
+  };
+
+  // 保存面试时间
+  const handleSaveTime = async () => {
+    if (!editScheduledAt) return;
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/interviews/${params.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduledAt: editScheduledAt }),
+      });
+      if (!response.ok) throw new Error('保存面试时间失败');
+      const updatedInterview = await response.json();
+      setInterview(updatedInterview);
+      setIsEditingTime(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '保存面试时间失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-6">
@@ -301,9 +331,45 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
                 </span>
               )}
             </div>
-            <p className="text-gray-600">
-              面试时间: {formatDateTime(interview.scheduledAt)}
-            </p>
+            <div className="text-gray-600 flex items-center gap-2">
+              <span>面试时间:</span>
+              {isEditingTime ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <input
+                    type="datetime-local"
+                    className="px-2 py-0.5 border rounded text-sm"
+                    value={editScheduledAt}
+                    onChange={(e) => setEditScheduledAt(e.target.value)}
+                  />
+                  <button
+                    onClick={handleSaveTime}
+                    disabled={isSaving}
+                    className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {isSaving ? '...' : '保存'}
+                  </button>
+                  <button
+                    onClick={() => setIsEditingTime(false)}
+                    className="px-2 py-0.5 border text-xs rounded hover:bg-gray-50"
+                  >
+                    取消
+                  </button>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  <span>{formatDateTime(interview.scheduledAt)}</span>
+                  {interview.status === 'SCHEDULED' && (
+                    <button
+                      onClick={startEditTime}
+                      className="text-blue-600 hover:text-blue-800 text-sm"
+                      title="修改面试时间"
+                    >
+                      修改
+                    </button>
+                  )}
+                </span>
+              )}
+            </div>
             {interview.completedAt && (
               <p className="text-gray-600">
                 完成时间: {formatDateTime(interview.completedAt)}
