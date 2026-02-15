@@ -23,6 +23,9 @@ import {
   Upload,
   Download,
   Eye,
+  Pencil,
+  Save,
+  X,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
@@ -147,6 +150,9 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [onboardOpen, setOnboardOpen] = useState(false);
+  const [hrScoreEditing, setHrScoreEditing] = useState(false);
+  const [hrScoreInput, setHrScoreInput] = useState('');
+  const [hrScoreSaving, setHrScoreSaving] = useState(false);
   const [onboardLoading, setOnboardLoading] = useState(false);
   const [onboardError, setOnboardError] = useState<string | null>(null);
   const [onboardForm, setOnboardForm] = useState({
@@ -160,6 +166,9 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
   const [resumeUploadError, setResumeUploadError] = useState<string | null>(null);
   const [resumeDeleting, setResumeDeleting] = useState(false);
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteNameInput, setDeleteNameInput] = useState('');
+  const [deleteNameError, setDeleteNameError] = useState<string | null>(null);
   const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -256,13 +265,25 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
     fetchCandidate();
   }, [params.id]);
 
-  // 删除候选人
-  const handleDelete = async () => {
-    if (!confirm('确定要删除此候选人吗？此操作不可恢复。')) {
+  // 打开删除确认对话框
+  const handleDeleteClick = () => {
+    setDeleteNameInput('');
+    setDeleteNameError(null);
+    setDeleteConfirmOpen(true);
+  };
+
+  // 确认删除候选人
+  const handleConfirmDelete = async () => {
+    if (!candidate) return;
+
+    // 验证输入的姓名
+    if (deleteNameInput.trim() !== candidate.name) {
+      setDeleteNameError(`请输入正确的候选人姓名（${candidate.name}）`);
       return;
     }
 
     setIsDeleting(true);
+    setDeleteConfirmOpen(false);
 
     try {
       const response = await fetch(`/api/candidates/${params.id}`, {
@@ -279,6 +300,48 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
       alert(err instanceof Error ? err.message : '删除候选人失败');
       setIsDeleting(false);
     }
+  };
+
+  // 开始编辑HR评估分
+  const handleHrScoreEdit = () => {
+    setHrScoreInput(candidate?.totalScore?.toString() || '');
+    setHrScoreEditing(true);
+  };
+
+  // 保存HR评估分
+  const handleHrScoreSave = async () => {
+    const score = parseFloat(hrScoreInput);
+    if (isNaN(score) || score < 0 || score > 100) {
+      alert('请输入0-100之间的有效分数');
+      return;
+    }
+
+    setHrScoreSaving(true);
+    try {
+      const response = await fetch(`/api/candidates/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ totalScore: score }),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存HR评估分失败');
+      }
+
+      setCandidate({ ...candidate!, totalScore: score });
+      setHrScoreEditing(false);
+    } catch (err) {
+      console.error('保存HR评估分错误:', err);
+      alert(err instanceof Error ? err.message : '保存HR评估分失败');
+    } finally {
+      setHrScoreSaving(false);
+    }
+  };
+
+  // 取消编辑HR评估分
+  const handleHrScoreCancel = () => {
+    setHrScoreEditing(false);
+    setHrScoreInput('');
   };
 
   // 办理入职
@@ -483,7 +546,7 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
             variant="ghost"
             size="icon"
             className="text-destructive"
-            onClick={handleDelete}
+            onClick={handleDeleteClick}
             disabled={isDeleting}
           >
             <Trash2 className="h-4 w-4" />
@@ -790,16 +853,63 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-sm text-muted-foreground">初始评分</p>
+                  <p className="text-sm text-muted-foreground">AI 评分</p>
                   <p className="text-2xl font-bold">
                     {candidate.initialScore !== null ? candidate.initialScore.toFixed(1) : '-'}
                   </p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-sm text-muted-foreground">总评分</p>
-                  <p className="text-2xl font-bold">
-                    {candidate.totalScore !== null && candidate.totalScore !== 0 ? candidate.totalScore.toFixed(1) : '-'}
-                  </p>
+                  <div className="flex items-center justify-center gap-1">
+                    <p className="text-sm text-muted-foreground">HR 评估分</p>
+                    {!hrScoreEditing && candidate.totalScore !== null && candidate.totalScore !== 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={handleHrScoreEdit}
+                      >
+                        <Pencil className="h-3 w-3 mr-1" />
+                        编辑
+                      </Button>
+                    )}
+                  </div>
+                  {hrScoreEditing ? (
+                    <div className="flex items-center justify-center gap-2 mt-2">
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={hrScoreInput}
+                          onChange={(e) => setHrScoreInput(e.target.value)}
+                          className="w-20 px-3 py-2 text-center border-2 border-primary rounded-lg text-xl font-bold focus:outline-none focus:ring-2 focus:ring-ring"
+                          autoFocus
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">分</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={handleHrScoreSave}
+                        disabled={hrScoreSaving}
+                        className="min-w-[60px]"
+                      >
+                        {hrScoreSaving ? '保存中...' : '保存'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleHrScoreCancel}
+                        className="min-w-[60px]"
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-2xl font-bold">
+                      {candidate.totalScore !== null && candidate.totalScore !== 0 ? candidate.totalScore.toFixed(1) : '-'}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -914,6 +1024,49 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
           )}
         </div>
       </div>
+
+      {/* 删除确认弹窗 */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认删除候选人</DialogTitle>
+            <DialogDescription className="space-y-2">
+              <p>此操作不可恢复，删除后将清除该候选人的所有信息。</p>
+              <p className="font-medium">
+                请输入候选人姓名 <span className="text-primary">"{candidate?.name}"</span> 确认删除：
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <input
+              type="text"
+              value={deleteNameInput}
+              onChange={(e) => {
+                setDeleteNameInput(e.target.value);
+                setDeleteNameError(null);
+              }}
+              placeholder={`请输入 "${candidate?.name}"`}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              autoFocus
+            />
+            {deleteNameError && (
+              <p className="text-sm text-destructive mt-2">{deleteNameError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting || !deleteNameInput.trim()}
+            >
+              {isDeleting ? '删除中...' : '确认删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* PDF 预览弹窗 */}
       {pdfPreviewOpen && candidate.resumeUrl && (

@@ -8,6 +8,7 @@ const prisma = new PrismaClient();
 const ALLOWED_TYPES: Record<string, string> = {
   'application/pdf': '.pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/msword': '.doc',
 };
 
 // 处理简历上传（上传至 MinIO）
@@ -24,11 +25,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 验证文件类型
-    const ext = ALLOWED_TYPES[file.type];
+    // 验证文件类型（优先用 MIME，兜底用扩展名）
+    const fileExt = file.name?.split('.').pop()?.toLowerCase();
+    const EXT_TO_MIME: Record<string, string> = {
+      pdf: 'application/pdf',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      doc: 'application/msword',
+    };
+    const resolvedType = ALLOWED_TYPES[file.type] ? file.type : (fileExt && EXT_TO_MIME[fileExt]) || file.type;
+    const ext = ALLOWED_TYPES[resolvedType];
     if (!ext) {
       return NextResponse.json(
-        { error: '只支持PDF和DOCX格式的文件' },
+        { error: '只支持PDF和Word（DOC/DOCX）格式的文件' },
         { status: 400 }
       );
     }
@@ -42,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     try {
       // 上传至 MinIO
-      const fileUrl = await uploadFile(buffer, objectName, file.type);
+      const fileUrl = await uploadFile(buffer, objectName, resolvedType);
 
       // 如果提供了 candidateId，更新候选人的 resumeUrl
       if (candidateId) {
@@ -57,7 +65,7 @@ export async function POST(request: NextRequest) {
         fileUrl,
         objectName,
         originalName,
-        contentType: file.type,
+        contentType: resolvedType,
         message: '文件上传成功',
       });
     } catch (error) {

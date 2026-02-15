@@ -19,6 +19,55 @@ import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Progress } from '@/app/components/ui/progress';
 
+// SSE 流式消费：读取 text/event-stream，回调 progress / done / error
+// 当收到 error 事件时，抛出异常让调用方 catch
+async function consumeSSE(
+  response: Response,
+  onProgress: (progress: number, text: string) => void,
+  onDone: (candidateId: string) => void,
+): Promise<void> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // 按双换行分割完整的 SSE 事件
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || ''; // 最后一段可能不完整，留作下次
+
+    for (const part of parts) {
+      if (!part.trim()) continue;
+      let eventType = 'message';
+      let data = '';
+      for (const line of part.split('\n')) {
+        if (line.startsWith('event: ')) eventType = line.slice(7);
+        else if (line.startsWith('data: ')) data = line.slice(6);
+      }
+      if (!data) continue;
+
+      let parsed;
+      try {
+        parsed = JSON.parse(data);
+      } catch {
+        continue; // ignore malformed JSON
+      }
+
+      if (eventType === 'progress') {
+        onProgress(parsed.progress, parsed.text);
+      } else if (eventType === 'done') {
+        onDone(parsed.candidateId);
+        return;
+      } else if (eventType === 'error') {
+        throw new Error(parsed.error);
+      }
+    }
+  }
+}
+
 export default function ResumeUpload() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
@@ -32,12 +81,19 @@ export default function ResumeUpload() {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const selectedFile = acceptedFiles[0];
-      if (selectedFile.type === 'application/pdf') {
+      const validTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword',
+      ];
+      const ext = selectedFile.name.split('.').pop()?.toLowerCase();
+      const validExts = ['pdf', 'doc', 'docx'];
+      if (validTypes.includes(selectedFile.type) || (ext && validExts.includes(ext))) {
         setFile(selectedFile);
         setError(null);
         setUploadSuccess(false);
       } else {
-        setError('请上传PDF格式的简历');
+        setError('请上传 PDF 或 Word（DOC/DOCX）格式的简历');
         setFile(null);
       }
     }
@@ -47,18 +103,11 @@ export default function ResumeUpload() {
     onDrop,
     accept: {
       'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/msword': ['.doc'],
     },
     maxFiles: 1,
   });
-
-  const simulateProgress = (steps: { progress: number; text: string }[]) => {
-    steps.forEach((step, index) => {
-      setTimeout(() => {
-        setProgress(step.progress);
-        setProgressText(step.text);
-      }, index * 800);
-    });
-  };
 
   const handleUploadPdf = async () => {
     if (!file) {
@@ -68,15 +117,11 @@ export default function ResumeUpload() {
 
     setLoading(true);
     setError(null);
-    setProgress(0);
-
-    simulateProgress([
-      { progress: 20, text: '正在上传文件...' },
-      { progress: 50, text: '正在解析PDF内容...' },
-      { progress: 80, text: 'AI正在提取关键信息...' },
-    ]);
+    setProgress(5);
+    setProgressText('正在上传文件...');
 
     try {
+      // 1. 上传文件
       const formData = new FormData();
       formData.append('file', file);
 
@@ -89,34 +134,43 @@ export default function ResumeUpload() {
         throw new Error('文件上传失败');
       }
 
-      const { fileId, fileUrl, objectName } = await uploadResponse.json();
+      const uploadData = await uploadResponse.json();
 
+      // 2. SSE 流式解析
       const parseResponse = await fetch('/api/resume/parse', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ fileId, fileUrl, objectName }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileId: uploadData.fileId,
+          fileUrl: uploadData.fileUrl,
+          objectName: uploadData.objectName,
+          contentType: uploadData.contentType || file.type,
+          originalName: uploadData.originalName,
+        }),
       });
 
       if (!parseResponse.ok) {
         throw new Error('简历解析失败');
       }
 
-      const { candidateId } = await parseResponse.json();
-      setProgress(100);
-      setProgressText('解析完成！');
-      setUploadSuccess(true);
-
-      setTimeout(() => {
-        router.push(`/candidates/${candidateId}`);
-      }, 500);
+      await consumeSSE(
+        parseResponse,
+        (p, text) => {
+          setProgress(p);
+          setProgressText(text);
+        },
+        (candidateId) => {
+          setUploadSuccess(true);
+          setLoading(false);
+          setTimeout(() => router.push(`/candidates/${candidateId}`), 500);
+        },
+      );
     } catch (err) {
       console.error('上传或解析过程中出错:', err);
       setError(err instanceof Error ? err.message : '上传或解析过程中出错');
       setProgress(0);
       setProgressText('');
-    } finally {
+      setUploadSuccess(false);
       setLoading(false);
     }
   };
@@ -129,19 +183,13 @@ export default function ResumeUpload() {
 
     setLoading(true);
     setError(null);
-    setProgress(0);
-
-    simulateProgress([
-      { progress: 30, text: '正在处理文本内容...' },
-      { progress: 70, text: 'AI正在提取关键信息...' },
-    ]);
+    setProgress(5);
+    setProgressText('正在准备文本...');
 
     try {
       const parseResponse = await fetch('/api/resume/parse-text', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resumeText }),
       });
 
@@ -149,20 +197,24 @@ export default function ResumeUpload() {
         throw new Error('简历解析失败');
       }
 
-      const { candidateId } = await parseResponse.json();
-      setProgress(100);
-      setProgressText('解析完成！');
-      setUploadSuccess(true);
-
-      setTimeout(() => {
-        router.push(`/candidates/${candidateId}`);
-      }, 500);
+      await consumeSSE(
+        parseResponse,
+        (p, text) => {
+          setProgress(p);
+          setProgressText(text);
+        },
+        (candidateId) => {
+          setUploadSuccess(true);
+          setLoading(false);
+          setTimeout(() => router.push(`/candidates/${candidateId}`), 500);
+        },
+      );
     } catch (err) {
       console.error('解析过程中出错:', err);
       setError(err instanceof Error ? err.message : '解析过程中出错');
       setProgress(0);
       setProgressText('');
-    } finally {
+      setUploadSuccess(false);
       setLoading(false);
     }
   };
@@ -201,7 +253,7 @@ export default function ResumeUpload() {
           <TabsList className="grid w-full max-w-sm mx-auto grid-cols-2 h-12 p-1 bg-muted">
             <TabsTrigger value="pdf" className="gap-2 text-sm font-medium">
               <Upload className="h-4 w-4" />
-              PDF上传
+              文件上传
             </TabsTrigger>
             <TabsTrigger value="text" className="gap-2 text-sm font-medium">
               <FileText className="h-4 w-4" />
@@ -260,10 +312,10 @@ export default function ResumeUpload() {
                       </div>
                       <div>
                         <p className="font-semibold">
-                          {isDragActive ? '释放以上传文件' : '点击或拖放PDF文件到这里'}
+                          {isDragActive ? '释放以上传文件' : '点击或拖放文件到这里'}
                         </p>
                         <p className="text-sm text-muted-foreground mt-1">
-                          支持 PDF 格式，最大 10MB
+                          支持 PDF、DOC、DOCX 格式，最大 10MB
                         </p>
                       </div>
                     </div>
@@ -271,10 +323,13 @@ export default function ResumeUpload() {
                 </div>
 
                 {/* 进度条 */}
-                {loading && (
-                  <div className="mt-6 space-y-2">
+                {(loading || uploadSuccess) && (
+                  <div className="mt-6 space-y-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{progressText}</span>
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        {progressText}
+                      </span>
                       <span className="font-medium">{progress}%</span>
                     </div>
                     <Progress value={progress} className="h-2" />
@@ -283,7 +338,7 @@ export default function ResumeUpload() {
 
                 {/* 成功提示 */}
                 {uploadSuccess && (
-                  <div className="mt-6 flex items-center gap-2 p-4 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400">
+                  <div className="mt-4 flex items-center gap-2 p-4 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400">
                     <CheckCircle2 className="h-5 w-5" />
                     <span>解析成功！正在跳转到候选人详情页...</span>
                   </div>
@@ -342,10 +397,13 @@ export default function ResumeUpload() {
                 </div>
 
                 {/* 进度条 */}
-                {loading && (
-                  <div className="space-y-2">
+                {(loading || uploadSuccess) && (
+                  <div className="space-y-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{progressText}</span>
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        {progressText}
+                      </span>
                       <span className="font-medium">{progress}%</span>
                     </div>
                     <Progress value={progress} className="h-2" />

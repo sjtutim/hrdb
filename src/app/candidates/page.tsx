@@ -29,6 +29,14 @@ import {
   DropdownMenuTrigger,
 } from '@/app/components/ui/dropdown-menu';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -80,7 +88,7 @@ function ScoreBadge({ score }: { score: number | null }) {
 }
 
 // 候选人表格行
-function CandidateRow({ candidate }: { candidate: Candidate }) {
+function CandidateRow({ candidate, onDelete }: { candidate: Candidate; onDelete: (id: string, name: string) => void }) {
   const status = statusMap[candidate.status] || { label: candidate.status, className: 'bg-gray-100 text-gray-800' };
 
   return (
@@ -160,7 +168,13 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem
+              className="text-destructive"
+              onSelect={(e) => {
+                e.preventDefault();
+                onDelete(candidate.id, candidate.name);
+              }}
+            >
               删除
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -194,6 +208,11 @@ export default function CandidatesPage() {
   const [tagStats, setTagStats] = useState<any[]>([]);
   const [tagStatsPeople, setTagStatsPeople] = useState(0);
   const [tagStatsLoading, setTagStatsLoading] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteNameInput, setDeleteNameInput] = useState('');
+  const [deleteNameError, setDeleteNameError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // 获取标签统计数据
   const fetchTagStats = async () => {
@@ -237,6 +256,47 @@ export default function CandidatesPage() {
 
     fetchCandidates();
   }, []);
+
+  // 打开删除确认对话框
+  const handleDeleteClick = (id: string, name: string) => {
+    setDeleteTarget({ id, name });
+    setDeleteNameInput('');
+    setDeleteNameError(null);
+    setDeleteConfirmOpen(true);
+  };
+
+  // 确认删除候选人
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    // 验证输入的姓名
+    if (deleteNameInput.trim() !== deleteTarget.name) {
+      setDeleteNameError(`请输入正确的姓名（${deleteTarget.name}）`);
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch(`/api/candidates/${deleteTarget.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('删除候选人失败');
+      }
+
+      // 删除成功，更新列表
+      setCandidates(candidates.filter(c => c.id !== deleteTarget.id));
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error('删除候选人错误:', err);
+      alert(err instanceof Error ? err.message : '删除候选人失败');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // 过滤和排序候选人
   const filteredCandidates = candidates
@@ -429,7 +489,7 @@ export default function CandidatesPage() {
                 </thead>
                 <tbody>
                   {filteredCandidates.map((candidate) => (
-                    <CandidateRow key={candidate.id} candidate={candidate} />
+                    <CandidateRow key={candidate.id} candidate={candidate} onDelete={handleDeleteClick} />
                   ))}
                 </tbody>
               </table>
@@ -454,6 +514,49 @@ export default function CandidatesPage() {
           </div>
         </div>
       )}
+
+      {/* 删除确认弹窗 */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认删除候选人</DialogTitle>
+            <DialogDescription className="space-y-2">
+              <p>此操作不可恢复，删除后将清除该候选人的所有信息。</p>
+              <p className="font-medium">
+                请输入候选人姓名 <span className="text-primary">"{deleteTarget?.name}"</span> 确认删除：
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <input
+              type="text"
+              value={deleteNameInput}
+              onChange={(e) => {
+                setDeleteNameInput(e.target.value);
+                setDeleteNameError(null);
+              }}
+              placeholder={`请输入 "${deleteTarget?.name}"`}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              autoFocus
+            />
+            {deleteNameError && (
+              <p className="text-sm text-destructive mt-2">{deleteNameError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting || !deleteNameInput.trim()}
+            >
+              {isDeleting ? '删除中...' : '确认删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

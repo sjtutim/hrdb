@@ -218,3 +218,47 @@ export async function DELETE(
     );
   }
 }
+
+// 部分更新候选人（如HR评估分）
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const candidateId = params.id;
+    const data = await request.json();
+
+    // 检查候选人是否存在
+    const existingCandidate = await prisma.candidate.findUnique({
+      where: { id: candidateId },
+    });
+
+    if (!existingCandidate) {
+      return NextResponse.json({ error: '候选人不存在' }, { status: 404 });
+    }
+
+    // 只允许更新部分字段
+    const allowedFields = ['totalScore', 'aiEvaluation', 'status', 'recruiterId'];
+    const updateData: Record<string, any> = {};
+
+    for (const field of allowedFields) {
+      if (data[field] !== undefined) {
+        updateData[field] = data[field];
+      }
+    }
+
+    const updatedCandidate = await prisma.candidate.update({
+      where: { id: candidateId },
+      data: updateData,
+      include: {
+        tags: true,
+        certificates: true,
+      },
+    });
+
+    return NextResponse.json(updatedCandidate);
+  } catch (error) {
+    console.error('更新候选人错误:', error);
+    return NextResponse.json({ error: '更新候选人失败' }, { status: 500 });
+  }
+}

@@ -7,14 +7,28 @@ export async function GET(
   { params }: { params: { objectName: string } }
 ) {
   try {
-    const objectName = decodeURIComponent(params.objectName);
+    let objectName = decodeURIComponent(params.objectName);
+
+    // 如果是完整URL，提取objectName部分
+    // 例如: http://10.10.3.237:9000/herobase/hrdb/xxx.pdf -> hrdb/xxx.pdf
+    if (objectName.startsWith('http://') || objectName.startsWith('https://')) {
+      const urlParts = objectName.split('/');
+      // 找到 bucket name 后的路径
+      // 例如: http://10.10.3.237:9000/herobase/hrdb/xxx.pdf -> hrdb/xxx.pdf
+      const bucketIndex = urlParts.findIndex(p => p === 'herobase' || p === BUCKET_NAME);
+      if (bucketIndex !== -1 && bucketIndex + 1 < urlParts.length) {
+        objectName = urlParts.slice(bucketIndex + 1).join('/');
+      }
+    }
 
     // 从 MinIO 获取文件流
     const stream = await minioClient.getObject(BUCKET_NAME, objectName);
 
-    // 获取文件元数据
+    // 获取文件元数据 - MinIO SDK 返回的 metadata keys 是大写的
     const stat = await minioClient.statObject(BUCKET_NAME, objectName);
-    const contentType = stat.metaData?.['content-type'] || 'application/octet-stream';
+    const metaData = stat.metaData || {};
+    // 尝试多种可能的 key 大小写形式
+    const contentType = metaData['Content-Type'] || metaData['content-type'] || 'application/octet-stream';
 
     // 读取流为 Buffer
     const chunks: Buffer[] = [];

@@ -18,13 +18,28 @@ import {
   Zap,
   Check,
   X,
-  AlertCircle
+  AlertCircle,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Progress } from '@/app/components/ui/progress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/app/components/ui/select';
+
+interface JobPosting {
+  id: string;
+  title: string;
+  department: string;
+  status: string;
+}
 
 interface JobMatch {
   id: string;
@@ -153,7 +168,7 @@ function TagComparison({ match }: { match: JobMatch }) {
 }
 
 // 匹配卡片组件
-function MatchCard({ match }: { match: JobMatch }) {
+function MatchCard({ match, onDelete }: { match: JobMatch; onDelete: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
 
   // 解析 AI 评估内容的各部分
@@ -268,6 +283,15 @@ function MatchCard({ match }: { match: JobMatch }) {
               {expanded ? '收起' : '查看详情'}
               {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1 text-destructive hover:text-destructive"
+              onClick={() => onDelete(match.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              删除
+            </Button>
             <Button variant="ghost" size="sm" className="h-8 gap-1" asChild>
               <Link href={`/interviews/create?candidateId=${match.candidateId}&jobId=${match.jobPostingId}`}>
                 安排面试
@@ -311,15 +335,40 @@ function ScoreRangeCard({
 
 export default function MatchingPage() {
   const [matches, setMatches] = useState<JobMatch[]>([]);
+  const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [matching, setMatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [scoreFilter, setScoreFilter] = useState<'ALL' | 'HIGH' | 'MEDIUM' | 'LOW'>('ALL');
 
+  // 获取激活的职位列表
+  useEffect(() => {
+    const fetchJobPostings = async () => {
+      try {
+        const response = await fetch('/api/job-postings?status=ACTIVE');
+        if (response.ok) {
+          const data = await response.json();
+          const jobs = Array.isArray(data) ? data : data.jobs || [];
+          setJobPostings(jobs);
+        }
+      } catch (err) {
+        console.error('获取职位列表错误:', err);
+      }
+    };
+
+    fetchJobPostings();
+  }, []);
+
+  // 获取匹配结果
   useEffect(() => {
     const fetchMatches = async () => {
       try {
-        const response = await fetch('/api/matches');
+        const url = selectedJobId
+          ? `/api/matches?jobPostingId=${selectedJobId}`
+          : '/api/matches';
+        const response = await fetch(url);
         if (!response.ok) {
           throw new Error('获取匹配结果失败');
         }
@@ -334,27 +383,59 @@ export default function MatchingPage() {
     };
 
     fetchMatches();
-  }, []);
+  }, [selectedJobId]);
 
   // 运行新的匹配
   const runNewMatching = async () => {
-    setLoading(true);
+    if (!selectedJobId) {
+      alert('请先选择一个职位');
+      return;
+    }
+
+    setMatching(true);
+    setError(null);
     try {
       const response = await fetch('/api/matches/run', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobPostingId: selectedJobId }),
       });
-      
+
       if (!response.ok) {
-        throw new Error('运行匹配失败');
+        const data = await response.json();
+        throw new Error(data.error || '运行匹配失败');
       }
-      
+
       const data = await response.json();
       setMatches(data);
     } catch (err) {
       console.error('运行匹配错误:', err);
       setError(err instanceof Error ? err.message : '运行匹配失败');
     } finally {
-      setLoading(false);
+      setMatching(false);
+    }
+  };
+
+  // 删除匹配记录
+  const handleDeleteMatch = async (matchId: string) => {
+    if (!confirm('确定要删除这条匹配记录吗？')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/matches/${matchId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('删除匹配记录失败');
+      }
+
+      // 从列表中移除
+      setMatches(matches.filter(m => m.id !== matchId));
+    } catch (err) {
+      console.error('删除匹配记录错误:', err);
+      alert(err instanceof Error ? err.message : '删除匹配记录失败');
     }
   };
 
@@ -404,10 +485,30 @@ export default function MatchingPage() {
             基于多维度智能匹配，为您推荐最适合的候选人
           </p>
         </div>
-        <Button onClick={runNewMatching} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? '匹配中...' : '运行新匹配'}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+            <SelectTrigger className="w-[280px]">
+              <SelectValue placeholder="选择目标职位" />
+            </SelectTrigger>
+            <SelectContent>
+              {jobPostings.length === 0 ? (
+                <SelectItem value="empty" disabled>
+                  暂无激活的职位
+                </SelectItem>
+              ) : (
+                jobPostings.map((job) => (
+                  <SelectItem key={job.id} value={job.id}>
+                    {job.title} - {job.department}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+          <Button onClick={runNewMatching} disabled={matching || !selectedJobId}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${matching ? 'animate-spin' : ''}`} />
+            {matching ? '匹配中...' : '开始匹配'}
+          </Button>
+        </div>
       </div>
 
       {/* 分数段统计 */}
@@ -524,7 +625,7 @@ export default function MatchingPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredMatches.map((match) => (
-            <MatchCard key={match.id} match={match} />
+            <MatchCard key={match.id} match={match} onDelete={handleDeleteMatch} />
           ))}
         </div>
       )}

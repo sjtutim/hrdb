@@ -3,10 +3,16 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// 获取所有匹配结果
+// 获取匹配结果
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const jobPostingId = searchParams.get('jobPostingId');
+
+    const where = jobPostingId ? { jobPostingId } : {};
+
     const matches = await prisma.jobMatch.findMany({
+      where,
       include: {
         candidate: {
           include: {
@@ -23,7 +29,7 @@ export async function GET(request: NextRequest) {
         matchScore: 'desc',
       },
     });
-    
+
     return NextResponse.json(matches);
   } catch (error) {
     console.error('获取匹配结果错误:', error);
