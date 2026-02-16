@@ -521,6 +521,7 @@ export default function DashboardPage() {
     const candidateStatusLabelMap: Record<string, string> = {
       NEW: '新候选人',
       SCREENING: '筛选中',
+      TALENT_POOL: '人才池',
       INTERVIEWING: '面试中',
       OFFERED: '已发Offer',
       ONBOARDING: '已入职',

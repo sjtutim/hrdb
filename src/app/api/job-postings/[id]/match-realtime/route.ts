@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import {
+  calculateTagMatchScore,
+  generateAIEvaluation,
+  generateFallbackEvaluation,
+  runWithConcurrency,
+} from '@/lib/match-engine';
+
+// Tag匹配仅用于前端展示（匹配/缺失/相似标签），不参与评分
 
 const prisma = new PrismaClient();
 
-// 实时匹配 - 根据职位实时计算候选人或员工的匹配度
+// 实时匹配 - 根据职位实时计算候选人或员工的匹配度（使用 LLM，带并发控制）
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -23,23 +31,32 @@ export async function POST(
       return NextResponse.json({ error: '职位不存在' }, { status: 404 });
     }
 
-    const jobTags = jobPosting.tags.map(t => t.name);
-
     if (source === 'employee') {
       // 从公司人才库（员工）匹配
       const employees = await prisma.employee.findMany({
         include: {
           candidate: {
-            include: { tags: true },
+            include: { tags: true, certificates: true },
           },
         },
       });
 
-      const results = employees.map(emp => {
-        const candidateTags = emp.candidate.tags.map(t => t.name);
-        const { score, matched, missing, extra } = calculateTagMatch(candidateTags, jobTags);
+      const results: any[] = [];
 
-        return {
+      await runWithConcurrency(employees, async (emp) => {
+        const tagMatchResult = calculateTagMatchScore(emp.candidate, jobPosting);
+        let aiResult;
+
+        try {
+          aiResult = await generateAIEvaluation(emp.candidate, jobPosting);
+        } catch (err) {
+          console.error(`员工 ${emp.candidate.name} LLM评估失败:`, err);
+          aiResult = generateFallbackEvaluation(emp.candidate, jobPosting, tagMatchResult.score);
+        }
+
+        const matchScore = aiResult.llmScore;
+
+        results.push({
           id: emp.id,
           type: 'employee' as const,
           name: emp.candidate.name,
@@ -48,37 +65,50 @@ export async function POST(
           currentCompany: emp.department,
           employeeId: emp.employeeId,
           tags: emp.candidate.tags,
-          matchScore: score,
-          matchedTags: matched,
-          missingTags: missing,
-          extraTags: extra,
-          evaluation: generateEvaluation(emp.candidate.name, jobPosting.title, score, matched, missing),
-        };
-      });
+          matchScore: Math.round(matchScore * 10) / 10,
+          matchedTags: tagMatchResult.matchedSkills,
+          missingTags: tagMatchResult.missingSkills,
+          similarTags: tagMatchResult.similarSkills,
+          extraTags: tagMatchResult.extraSkills,
+          evaluation: aiResult.evaluation,
+        });
+      }, 3);
 
       results.sort((a, b) => b.matchScore - a.matchScore);
       return NextResponse.json({ source: 'employee', jobPosting, results });
     } else {
-      // 从候选人库匹配
+      // 获取已匹配过该职位的候选人ID列表
+      const existingMatches = await prisma.jobMatch.findMany({
+        where: { jobPostingId: jobId },
+        select: { candidateId: true },
+      });
+      const matchedCandidateIds = existingMatches.map(m => m.candidateId);
+
+      // 从候选人库匹配，排除已匹配过该职位的候选人
       const candidates = await prisma.candidate.findMany({
         where: {
-          status: { in: ['NEW', 'SCREENING'] },
+          status: { in: ['NEW', 'SCREENING', 'TALENT_POOL'] },
+          ...(matchedCandidateIds.length > 0 ? { id: { notIn: matchedCandidateIds } } : {}),
         },
-        include: { tags: true },
+        include: { tags: true, certificates: true },
       });
 
-      const results = candidates.map(c => {
-        const candidateTags = c.tags.map(t => t.name);
-        const { score, matched, missing, extra } = calculateTagMatch(candidateTags, jobTags);
+      const results: any[] = [];
 
-        // 工作经验加分
-        const expBonus = calculateExpBonus(c.workExperience);
-        // 教育背景加分
-        const eduBonus = c.education ? 10 : 0;
+      await runWithConcurrency(candidates, async (c) => {
+        const tagMatchResult = calculateTagMatchScore(c, jobPosting);
+        let aiResult;
 
-        const finalScore = Math.min(100, Math.max(0, score * 0.6 + expBonus + eduBonus));
+        try {
+          aiResult = await generateAIEvaluation(c, jobPosting);
+        } catch (err) {
+          console.error(`候选人 ${c.name} LLM评估失败:`, err);
+          aiResult = generateFallbackEvaluation(c, jobPosting, tagMatchResult.score);
+        }
 
-        return {
+        const matchScore = aiResult.llmScore;
+
+        results.push({
           id: c.id,
           type: 'candidate' as const,
           name: c.name,
@@ -86,13 +116,14 @@ export async function POST(
           currentPosition: c.currentPosition,
           currentCompany: c.currentCompany,
           tags: c.tags,
-          matchScore: Math.round(finalScore * 10) / 10,
-          matchedTags: matched,
-          missingTags: missing,
-          extraTags: extra,
-          evaluation: generateEvaluation(c.name, jobPosting.title, finalScore, matched, missing),
-        };
-      });
+          matchScore: Math.round(matchScore * 10) / 10,
+          matchedTags: tagMatchResult.matchedSkills,
+          missingTags: tagMatchResult.missingSkills,
+          similarTags: tagMatchResult.similarSkills,
+          extraTags: tagMatchResult.extraSkills,
+          evaluation: aiResult.evaluation,
+        });
+      }, 3);
 
       results.sort((a, b) => b.matchScore - a.matchScore);
       return NextResponse.json({ source: 'candidate', jobPosting, results });
@@ -101,62 +132,4 @@ export async function POST(
     console.error('实时匹配错误:', error);
     return NextResponse.json({ error: '实时匹配失败' }, { status: 500 });
   }
-}
-
-function calculateTagMatch(candidateTags: string[], jobTags: string[]) {
-  const matched = candidateTags.filter(t => jobTags.includes(t));
-  const missing = jobTags.filter(t => !candidateTags.includes(t));
-  const extra = candidateTags.filter(t => !jobTags.includes(t));
-
-  const score = jobTags.length > 0
-    ? (matched.length / jobTags.length) * 100
-    : 50;
-
-  return { score, matched, missing, extra };
-}
-
-function calculateExpBonus(workExperience: string | null): number {
-  if (!workExperience) return 5;
-  const yearMatch = workExperience.match(/(\d+)\s*年/);
-  if (yearMatch) {
-    const years = parseInt(yearMatch[1], 10);
-    if (years >= 3 && years <= 10) return 20;
-    if (years > 10) return 15;
-    return 10;
-  }
-  return workExperience.length > 50 ? 15 : 10;
-}
-
-function generateEvaluation(
-  name: string,
-  jobTitle: string,
-  score: number,
-  matched: string[],
-  missing: string[]
-): string {
-  let text = '';
-  if (score >= 80) {
-    text = `${name}与${jobTitle}岗位高度匹配。`;
-  } else if (score >= 60) {
-    text = `${name}与${jobTitle}岗位匹配度中等。`;
-  } else {
-    text = `${name}与${jobTitle}岗位匹配度较低。`;
-  }
-
-  if (matched.length > 0) {
-    text += `具备关键技能：${matched.join('、')}。`;
-  }
-  if (missing.length > 0) {
-    text += `缺少：${missing.join('、')}。`;
-  }
-
-  if (score >= 80) {
-    text += '建议优先安排面试。';
-  } else if (score >= 60) {
-    text += '可以考虑安排面试评估。';
-  } else {
-    text += '建议考虑其他更合适的候选人。';
-  }
-
-  return text;
 }

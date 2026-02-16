@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "CandidateStatus" ADD VALUE 'TALENT_POOL' AFTER 'SCREENING';

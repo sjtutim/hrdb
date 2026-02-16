@@ -97,6 +97,7 @@ interface Candidate {
 const statusMap: Record<string, { label: string; className: string }> = {
   NEW: { label: '新建档案', className: 'bg-blue-100 text-blue-800' },
   SCREENING: { label: '筛选中', className: 'bg-yellow-100 text-yellow-800' },
+  TALENT_POOL: { label: '人才池', className: 'bg-cyan-100 text-cyan-800' },
   INTERVIEWING: { label: '面试中', className: 'bg-purple-100 text-purple-800' },
   OFFERED: { label: '已发offer', className: 'bg-indigo-100 text-indigo-800' },
   ONBOARDING: { label: '入职中', className: 'bg-teal-100 text-teal-800' },

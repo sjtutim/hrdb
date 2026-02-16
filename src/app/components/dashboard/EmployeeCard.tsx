@@ -25,6 +25,7 @@ interface EmployeeCardProps {
 const statusConfig: Record<string, { label: string; className: string }> = {
   NEW: { label: '新建档案', className: 'status-badge-screening' },
   SCREENING: { label: '筛选中', className: 'status-badge-screening' },
+  TALENT_POOL: { label: '人才池', className: 'status-badge-screening' },
   INTERVIEWING: { label: '面试中', className: 'status-badge-interviewing' },
   OFFERED: { label: '已发offer', className: 'status-badge-offered' },
   ONBOARDING: { label: '入职中', className: 'status-badge-onboarding' },

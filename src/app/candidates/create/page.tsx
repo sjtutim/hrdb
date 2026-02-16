@@ -25,7 +25,7 @@ const formSchema = z.object({
   currentPosition: z.string().optional(),
   currentCompany: z.string().optional(),
   aiEvaluation: z.string().optional(),
-  status: z.enum(['NEW', 'SCREENING', 'INTERVIEWING', 'OFFERED', 'ONBOARDING', 'PROBATION', 'EMPLOYED', 'REJECTED', 'ARCHIVED']),
+  status: z.enum(['NEW', 'SCREENING', 'TALENT_POOL', 'INTERVIEWING', 'OFFERED', 'ONBOARDING', 'PROBATION', 'EMPLOYED', 'REJECTED', 'ARCHIVED']),
 });
 
 interface Tag {
@@ -296,6 +296,7 @@ export default function CreateCandidatePage() {
                       >
                         <option value="NEW">新建档案</option>
                         <option value="SCREENING">筛选中</option>
+                        <option value="TALENT_POOL">人才池</option>
                         <option value="INTERVIEWING">面试中</option>
                         <option value="OFFERED">已发offer</option>
                         <option value="ONBOARDING">入职中</option>

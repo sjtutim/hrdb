@@ -48,6 +48,8 @@ model Candidate {
   initialScore      Float?          // 初始评分
   totalScore        Float?          // 总评分
   aiEvaluation      String?         @db.Text // AI简历评价
+  aiProfile         String?         @db.Text // AI能力画像（缓存，匹配时复用）
+  aiProfileUpdatedAt DateTime?               // 能力画像生成时间
   status            CandidateStatus @default(NEW)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
@@ -76,6 +78,7 @@ model Certificate {
 enum CandidateStatus {
   NEW              // 新建档案
   SCREENING        // 筛选中
+  TALENT_POOL      // 人才池
   INTERVIEWING     // 面试中
   OFFERED          // 已发offer
   ONBOARDING       // 入职中

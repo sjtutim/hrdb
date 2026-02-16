@@ -68,6 +68,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
   EMPLOYED: { label: '已正式入职', className: 'status-employed' },
   REJECTED: { label: '已拒绝', className: 'status-rejected' },
   ARCHIVED: { label: '已归档', className: 'status-archived' },
+  TALENT_POOL: { label: '人才池', className: 'status-talent-pool' },
 };
 
 // 评分显示组件
