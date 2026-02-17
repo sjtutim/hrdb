@@ -99,8 +99,15 @@ function CandidateRow({ candidate, onDelete }: { candidate: Candidate; onDelete:
           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
             {candidate.name.charAt(0)}
           </div>
-          <div>
-            <p className="font-medium text-foreground">{candidate.name}</p>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-foreground">{candidate.name}</p>
+              {(candidate as any).interviewScore !== null && (candidate as any).interviewScore !== undefined && (
+                <span className="px-1.5 py-0.5 text-xs rounded bg-blue-100 text-blue-700 font-medium">
+                  {(candidate as any).interviewScore?.toFixed(1)}
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2 mt-0.5">
               <Mail className="h-3 w-3 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">{candidate.email}</span>

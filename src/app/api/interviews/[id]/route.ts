@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 
@@ -10,7 +12,11 @@ export async function GET(
 ) {
   try {
     const interviewId = params.id;
-    
+
+    // 获取当前登录用户
+    const session = await getServerSession(authOptions);
+    const currentUserId = session?.user?.id;
+
     const interview = await prisma.interview.findUnique({
       where: {
         id: interviewId,
@@ -35,17 +41,37 @@ export async function GET(
             role: true,
           },
         },
-        scores: true,
+        scores: {
+          include: {
+            interviewer: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
-    
+
     if (!interview) {
       return NextResponse.json(
         { error: '面试不存在' },
         { status: 404 }
       );
     }
-    
+
+    // 如果用户未登录，检查是否是面试参与者
+    if (!currentUserId) {
+      const isParticipant = interview.interviews.some(i => i.id === currentUserId);
+      if (!isParticipant) {
+        return NextResponse.json(
+          { error: '无权访问此面试' },
+          { status: 403 }
+        );
+      }
+    }
+
     return NextResponse.json(interview);
   } catch (error) {
     console.error('获取面试详情错误:', error);
@@ -150,18 +176,31 @@ export async function PUT(
     
     // 如果有评分数据，创建或更新评分
     if (data.scores && Array.isArray(data.scores)) {
-      // 删除现有评分
-      await prisma.interviewScore.deleteMany({
-        where: {
-          interviewId,
-        },
-      });
-      
-      // 创建新评分
+      // 获取当前登录用户作为面试官
+      const session = await getServerSession(authOptions);
+      const currentUserId = session?.user?.id;
+
+      // 获取当前用户信息
+      const currentUser = currentUserId ? await prisma.user.findUnique({
+        where: { id: currentUserId },
+      }) : null;
+
+      // 删除当前用户为该面试官的所有现有评分
+      if (currentUserId) {
+        await prisma.interviewScore.deleteMany({
+          where: {
+            interviewId,
+            interviewerId: currentUserId,
+          },
+        });
+      }
+
+      // 创建新评分（使用当前登录用户作为面试官）
       for (const score of data.scores) {
         await prisma.interviewScore.create({
           data: {
             interviewId,
+            interviewerId: score.interviewerId || currentUserId,
             category: score.category,
             score: score.score,
             notes: score.notes || null,
@@ -175,6 +214,117 @@ export async function PUT(
     console.error('更新面试错误:', error);
     return NextResponse.json(
       { error: '更新面试失败' },
+      { status: 500 }
+    );
+  }
+}
+
+// 单独添加评分
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const interviewId = params.id;
+    const data = await request.json();
+
+    // 验证必要字段
+    if (!data.scores || !Array.isArray(data.scores)) {
+      return NextResponse.json(
+        { error: '缺少评分数据' },
+        { status: 400 }
+      );
+    }
+
+    // 检查面试是否存在
+    const interview = await prisma.interview.findUnique({
+      where: { id: interviewId },
+    });
+
+    if (!interview) {
+      return NextResponse.json(
+        { error: '面试不存在' },
+        { status: 404 }
+      );
+    }
+
+    // 获取当前登录用户
+    const session = await getServerSession(authOptions);
+    const currentUserId = session?.user?.id;
+
+    if (!currentUserId) {
+      return NextResponse.json(
+        { error: '未登录，无法评分' },
+        { status: 401 }
+      );
+    }
+
+    // 删除当前用户的所有现有评分（允许重新评分）
+    await prisma.interviewScore.deleteMany({
+      where: {
+        interviewId,
+        interviewerId: currentUserId,
+      },
+    });
+
+    // 创建新评分
+    const createdScores = [];
+    for (const score of data.scores) {
+      const created = await prisma.interviewScore.create({
+        data: {
+          interviewId,
+          interviewerId: currentUserId,
+          category: score.category,
+          score: score.score,
+          notes: score.notes || null,
+        },
+        include: {
+          interviewer: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+      createdScores.push(created);
+    }
+
+    // 获取更新后的完整面试信息
+    const updatedInterview = await prisma.interview.findUnique({
+      where: { id: interviewId },
+      include: {
+        candidate: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        interviews: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        scores: {
+          include: {
+            interviewer: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return NextResponse.json(updatedInterview);
+  } catch (error) {
+    console.error('添加评分错误:', error);
+    return NextResponse.json(
+      { error: '添加评分失败' },
       { status: 500 }
     );
   }

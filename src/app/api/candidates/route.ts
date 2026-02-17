@@ -10,13 +10,38 @@ export async function GET(request: NextRequest) {
       include: {
         tags: true,
         certificates: true,
+        interviews: {
+          include: {
+            scores: true,
+          },
+        },
       },
       orderBy: {
         updatedAt: 'desc',
       },
     });
 
-    return NextResponse.json(candidates);
+    // 计算每个候选人的面试评分
+    const candidatesWithScores = candidates.map(candidate => {
+      const allScores: number[] = [];
+      candidate.interviews.forEach(interview => {
+        if (interview.scores && interview.scores.length > 0) {
+          const interviewScore = interview.scores.reduce((sum, s) => sum + s.score, 0) / interview.scores.length;
+          allScores.push(interviewScore);
+        }
+      });
+      const interviewScore = allScores.length > 0
+        ? allScores.reduce((sum, s) => sum + s, 0) / allScores.length
+        : null;
+
+      return {
+        ...candidate,
+        interviewScore,
+        interviews: undefined, // 移除原始面试数据以减少传输量
+      };
+    });
+
+    return NextResponse.json(candidatesWithScores);
   } catch (error) {
     console.error('获取候选人列表错误:', error);
     return NextResponse.json(

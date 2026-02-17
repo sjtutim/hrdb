@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { convertRawTextToMarkdown } from '@/lib/resume-parser';
-import { extractResumeData, ResumeValidationError } from '@/lib/llm';
+import { extractResumeData, cleanResumeText, ResumeValidationError } from '@/lib/llm';
 
 const prisma = new PrismaClient();
 
@@ -25,11 +25,12 @@ export async function POST(request: NextRequest) {
       try {
         // 1. 文本预处理
         send('progress', { progress: 10, text: '正在预处理文本内容...' });
-        const markdown = convertRawTextToMarkdown(resumeText);
+        const rawText = convertRawTextToMarkdown(resumeText);
+        const cleanedContent = cleanResumeText(rawText);
 
-        // 2. AI 分析（最耗时）
-        send('progress', { progress: 20, text: 'AI 正在分析简历，提取结构化信息...' });
-        const resumeData = await extractResumeData(markdown);
+        // 2. AI 一次性完成：清理格式化 + 提取结构化信息
+        send('progress', { progress: 30, text: 'AI 正在分析简历，清理并提取结构化信息...' });
+        const resumeData = await extractResumeData(cleanedContent);
 
         // 3. 保存候选人记录
         send('progress', { progress: 80, text: '正在创建候选人档案...' });
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
             workExperience: resumeData.workExperience,
             currentPosition: resumeData.currentPosition,
             currentCompany: resumeData.currentCompany,
-            resumeContent: markdown,
+            resumeContent: cleanedContent,
             initialScore: resumeData.initialScore,
             totalScore: resumeData.initialScore,
             aiEvaluation: resumeData.aiEvaluation,
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
             workExperience: resumeData.workExperience,
             currentPosition: resumeData.currentPosition,
             currentCompany: resumeData.currentCompany,
-            resumeContent: markdown,
+            resumeContent: cleanedContent,
             initialScore: resumeData.initialScore,
             totalScore: resumeData.initialScore,
             aiEvaluation: resumeData.aiEvaluation,

@@ -3,6 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/app/components/ui/dialog';
 
 interface Interview {
   id: string;
@@ -38,8 +46,21 @@ interface Interview {
     category: string;
     score: number;
     notes: string | null;
+    interviewer?: {
+      id: string;
+      name: string;
+    };
   }[];
 }
+
+// 评分类别
+const SCORE_CATEGORIES: Record<string, string[]> = {
+  PHONE: ['沟通能力', '语言表达', '基本素质', '职业匹配度'],
+  TECHNICAL: ['专业知识', '解决问题能力', '代码质量', '技术视野', '学习能力'],
+  HR: ['沟通能力', '团队协作', '职业规划', '文化匹配度', '薪资期望'],
+  MANAGER: ['领导能力', '项目经验', '决策能力', '沟通能力', '团队管理'],
+  PERSONALITY: ['性格特质', '压力承受能力', '适应性', '价值观匹配度'],
+};
 
 export default function InterviewDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -54,6 +75,11 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
   const [editFeedback, setEditFeedback] = useState('');
   const [editScheduledAt, setEditScheduledAt] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const { data: session } = useSession();
+  const [showScoreForm, setShowScoreForm] = useState(false);
+  const [scoreForm, setScoreForm] = useState<{ category: string; score: number; notes: string }[]>([]);
+  const [isSubmittingScore, setIsSubmittingScore] = useState(false);
+  const [scoreSuccess, setScoreSuccess] = useState(false);
 
   useEffect(() => {
     const fetchInterview = async () => {
@@ -140,11 +166,81 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
   };
 
   // 计算平均分
+  // 计算总评分：每个面试官的平均分的平均值
   const calculateAverageScore = (scores: Interview['scores']) => {
     if (!scores || scores.length === 0) return null;
-    
-    const totalScore = scores.reduce((sum, score) => sum + score.score, 0);
-    return totalScore / scores.length;
+
+    // 按面试官分组
+    const scoresByInterviewer = new Map<string, number[]>();
+    scores.forEach((score) => {
+      const interviewerId = score.interviewer?.id || 'unknown';
+      if (!scoresByInterviewer.has(interviewerId)) {
+        scoresByInterviewer.set(interviewerId, []);
+      }
+      scoresByInterviewer.get(interviewerId)!.push(score.score);
+    });
+
+    // 计算每个面试官的平均分
+    const interviewerAverages: number[] = [];
+    scoresByInterviewer.forEach((scoreList) => {
+      const sum = scoreList.reduce((a, b) => a + b, 0);
+      interviewerAverages.push(sum / scoreList.length);
+    });
+
+    // 计算所有面试官平均分的平均值
+    if (interviewerAverages.length === 0) return null;
+    const total = interviewerAverages.reduce((sum, avg) => sum + avg, 0);
+    return total / interviewerAverages.length;
+  };
+
+  // 获取当前用户是否已评分
+  const hasCurrentUserScored = () => {
+    if (!session?.user?.id || !interview?.scores) return false;
+    return interview.scores.some(
+      (score) => score.interviewer?.id === session.user.id
+    );
+  };
+
+  // 初始化评分表单
+  const initScoreForm = () => {
+    const categories = SCORE_CATEGORIES[interview?.type || ''] || [];
+    setScoreForm(
+      categories.map((category) => ({
+        category,
+        score: 3,
+        notes: '',
+      }))
+    );
+    setShowScoreForm(true);
+  };
+
+  // 提交评分
+  const handleSubmitScore = async () => {
+    if (!scoreForm.length) return;
+    setIsSubmittingScore(true);
+    try {
+      const response = await fetch(`/api/interviews/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scores: scoreForm }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '提交评分失败');
+      }
+
+      const updatedInterview = await response.json();
+      setInterview(updatedInterview);
+      setShowScoreForm(false);
+      setScoreSuccess(true);
+      setTimeout(() => setScoreSuccess(false), 3000);
+    } catch (err) {
+      console.error('提交评分错误:', err);
+      alert(err instanceof Error ? err.message : '提交评分失败');
+    } finally {
+      setIsSubmittingScore(false);
+    }
   };
 
   // 删除面试
@@ -303,6 +399,16 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
             <Link href={`/interviews/${interview.id}/complete`} className="btn-primary">
               记录结果
             </Link>
+          )}
+          {session && !hasCurrentUserScored() && (
+            <button onClick={initScoreForm} className="btn-primary">
+              添加评分
+            </button>
+          )}
+          {session && hasCurrentUserScored() && (
+            <button onClick={initScoreForm} className="btn-secondary">
+              修改评分
+            </button>
           )}
         </div>
       </div>
@@ -538,31 +644,159 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
 
         {interview.scores && interview.scores.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-medium mb-2">评分详情</h3>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {interview.scores.map((score) => (
-                  <div key={score.id} className="border-b pb-2">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-medium">{score.category}</span>
-                      <span className={`px-2 py-1 rounded-full ${
-                        score.score >= 4 ? 'bg-green-100 text-green-800' :
-                        score.score >= 3 ? 'bg-blue-100 text-blue-800' :
-                        score.score >= 2 ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {score.score.toFixed(1)}
-                      </span>
+            <h3 className="text-lg font-medium mb-4">评分详情</h3>
+            {/* 按面试官分组显示评分 */}
+            {(() => {
+              // 按面试官分组
+              const scoresByInterviewer: Record<string, {
+                interviewer: { id: string; name: string };
+                scores: Interview['scores'];
+              }> = {};
+
+              interview.scores.forEach((score) => {
+                const interviewerId = score.interviewer?.id || 'unknown';
+                if (!scoresByInterviewer[interviewerId]) {
+                  scoresByInterviewer[interviewerId] = {
+                    interviewer: score.interviewer || { id: interviewerId, name: '未知面试官' },
+                    scores: [],
+                  };
+                }
+                scoresByInterviewer[interviewerId].scores.push(score);
+              });
+
+              const groups = Object.values(scoresByInterviewer);
+
+              // 计算每个面试官的平均分
+              const calculateGroupAverage = (scores: Interview['scores']) => {
+                if (!scores || scores.length === 0) return null;
+                const total = scores.reduce((sum, s) => sum + s.score, 0);
+                return total / scores.length;
+              };
+
+              return (
+                <div className="space-y-4">
+                  {groups.map((group) => {
+                    const avgScore = calculateGroupAverage(group.scores);
+                    return (
+                      <div key={group.interviewer.id} className="bg-gray-50 p-4 rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{group.interviewer.name}</span>
+                            <span className="text-sm text-muted-foreground">的评分</span>
+                          </div>
+                          {avgScore !== null && (
+                            <span className={`px-2 py-1 rounded-full text-sm font-medium ${
+                              avgScore >= 4 ? 'bg-green-100 text-green-800' :
+                              avgScore >= 3 ? 'bg-blue-100 text-blue-800' :
+                              avgScore >= 2 ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              平均: {avgScore.toFixed(1)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {group.scores.map((score) => (
+                            <div key={score.id} className="border-b border-gray-200 pb-2 last:border-0">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm">{score.category}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-xs ${
+                                  score.score >= 4 ? 'bg-green-100 text-green-800' :
+                                  score.score >= 3 ? 'bg-blue-100 text-blue-800' :
+                                  score.score >= 2 ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {score.score.toFixed(1)}
+                                </span>
+                              </div>
+                              {score.notes && (
+                                <p className="text-xs text-gray-600">{score.notes}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* 评分表单 Dialog */}
+        <Dialog open={showScoreForm} onOpenChange={setShowScoreForm}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>
+                {hasCurrentUserScored() ? '修改评分' : '添加评分'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto py-4">
+              {scoreSuccess && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                  评分提交成功！
+                </div>
+              )}
+              <div className="space-y-4">
+                {scoreForm.map((item, index) => (
+                  <div key={index} className="p-4 bg-muted/50 rounded-lg">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-2">
+                      <label className="font-medium">
+                        {item.category}
+                      </label>
+                      <div className="flex items-center">
+                        {[1, 2, 3, 4, 5].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className={`w-8 h-8 rounded-full mx-0.5 flex items-center justify-center text-sm ${
+                              item.score === value
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                            onClick={() => {
+                              const newForm = [...scoreForm];
+                              newForm[index].score = value;
+                              setScoreForm(newForm);
+                            }}
+                          >
+                            {value}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    {score.notes && (
-                      <p className="text-sm text-gray-600">{score.notes}</p>
-                    )}
+                    <textarea
+                      className="w-full p-2 border rounded text-sm"
+                      placeholder={`关于${item.category}的具体评价...`}
+                      value={item.notes}
+                      onChange={(e) => {
+                        const newForm = [...scoreForm];
+                        newForm[index].notes = e.target.value;
+                        setScoreForm(newForm);
+                      }}
+                    />
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        )}
+            <DialogFooter>
+              <button
+                onClick={() => setShowScoreForm(false)}
+                className="px-4 py-2 border rounded hover:bg-gray-100"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSubmitScore}
+                disabled={isSubmittingScore}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              >
+                {isSubmittingScore ? '提交中...' : '提交评分'}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="flex justify-between mt-8">
           <div>

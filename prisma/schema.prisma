@@ -21,8 +21,10 @@ model User {
   updatedAt      DateTime        @updatedAt
   candidates     Candidate[]     // 招聘人员关联的候选人
   jobPostings    JobPosting[]    // 创建的岗位
-  interviews     Interview[]     // 参与的面试（多对多）
+  interviews     Interview[]     @relation("InterviewInterviewers") // 参与的面试（多对多）
+  createdInterviews Interview[]  @relation("InterviewCreator") // 创建的面试
   evaluations    Evaluation[]    // 提交的评估
+  interviewScores InterviewScore[] // 面试评分记录
 }
 
 enum UserRole {
@@ -123,7 +125,8 @@ model JobPosting {
   creatorId       String        // 创建者ID
   creator         User          @relation(fields: [creatorId], references: [id])
   tags            Tag[]         // 岗位标签
-  jobMatches      JobMatch[]    // 候选人匹配记录
+  jobMatches        JobMatch[]       // 候选人匹配记录
+  scheduledMatches  ScheduledMatch[] // 计划匹配任务
 }
 
 enum JobStatus {
@@ -154,7 +157,9 @@ model Interview {
   id            String           @id @default(uuid())
   candidateId   String
   candidate     Candidate        @relation(fields: [candidateId], references: [id])
-  interviews    User[]           // 面试官（多对多）
+  interviews    User[]           @relation("InterviewInterviewers") // 面试官（多对多）
+  createdBy     User?            @relation("InterviewCreator", fields: [createdById], references: [id])
+  createdById   String?
   type          InterviewType
   scheduledAt   DateTime
   location      String?          // 面试地点
@@ -170,14 +175,16 @@ model Interview {
 
 // 面试评分模型
 model InterviewScore {
-  id          String    @id @default(uuid())
-  interviewId String
-  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
-  category    String    // 评分类别
-  score       Float     // 分数
-  notes       String?   // 备注
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(uuid())
+  interviewId   String
+  interview     Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  interviewerId String
+  interviewer   User      @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+  category      String    // 评分类别
+  score         Float     // 分数
+  notes         String?   // 备注
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 enum InterviewType {
@@ -286,6 +293,51 @@ model Penalty {
   date          DateTime
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+}
+
+// 计划匹配任务模型
+model ScheduledMatch {
+  id              String               @id @default(uuid())
+  jobPostingId    String
+  jobPosting      JobPosting           @relation(fields: [jobPostingId], references: [id])
+  candidateIds    String[]             // 候选人ID列表
+  scheduledFor    DateTime             // 计划执行时间
+  status          ScheduledMatchStatus @default(PENDING)
+  totalCandidates Int                  // 总候选人数
+  processedCount  Int                  @default(0) // 已处理数
+  error           String?              @db.Text     // 错误信息
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+}
+
+enum ScheduledMatchStatus {
+  PENDING    // 等待执行
+  RUNNING    // 执行中
+  COMPLETED  // 已完成
+  FAILED     // 失败
+  CANCELLED  // 已取消
+}
+
+// 计划解析任务模型
+model ScheduledParse {
+  id            String              @id @default(uuid())
+  fileId        String
+  objectName    String
+  contentType   String
+  originalName  String
+  scheduledFor  DateTime
+  status        ScheduledParseStatus @default(PENDING)
+  candidateId   String?
+  error         String?             @db.Text
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+enum ScheduledParseStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
 }
 
 // 角色菜单权限模型

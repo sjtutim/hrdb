@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -43,6 +43,10 @@ interface InterviewScore {
   category: string;
   score: number;
   notes: string | null;
+  interviewer?: {
+    id: string;
+    name: string;
+  };
 }
 
 interface Interview {
@@ -65,13 +69,38 @@ interface Interview {
     id: string;
     name: string;
   };
+  interviews: {
+    id: string;
+    name: string;
+    email: string;
+  }[];
 }
 
-// 计算面试总分
+// 计算面试总分：每个面试官的平均分的平均值
 function calculateTotalScore(scores: InterviewScore[]): number | null {
   if (!scores || scores.length === 0) return null;
-  const total = scores.reduce((sum, s) => sum + s.score, 0);
-  return Math.round(total / scores.length * 10) / 10;
+
+  // 按面试官分组
+  const scoresByInterviewer = new Map<string, number[]>();
+  scores.forEach((score) => {
+    const interviewerId = score.interviewer?.id || 'unknown';
+    if (!scoresByInterviewer.has(interviewerId)) {
+      scoresByInterviewer.set(interviewerId, []);
+    }
+    scoresByInterviewer.get(interviewerId)!.push(score.score);
+  });
+
+  // 计算每个面试官的平均分
+  const interviewerAverages: number[] = [];
+  scoresByInterviewer.forEach((scoreList) => {
+    const sum = scoreList.reduce((a, b) => a + b, 0);
+    interviewerAverages.push(sum / scoreList.length);
+  });
+
+  // 计算所有面试官平均分的平均值
+  if (interviewerAverages.length === 0) return null;
+  const total = interviewerAverages.reduce((sum, avg) => sum + avg, 0);
+  return Math.round(total / interviewerAverages.length * 10) / 10;
 }
 
 // 状态配置
@@ -108,38 +137,63 @@ const typeConfig: Record<string, { label: string; color: string }> = {
 };
 
 // 面试行组件
-function InterviewRow({ interview }: { interview: Interview }) {
+function InterviewRow({ interview, onRefresh }: { interview: Interview; onRefresh: () => void }) {
+  const [cancelling, setCancelling] = useState(false);
   const status = statusConfig[interview.status];
   const type = typeConfig[interview.type] || { label: interview.type, color: 'bg-gray-100 text-gray-700' };
   const scheduledDate = new Date(interview.scheduledAt);
   const isPast = scheduledDate < new Date();
   const isToday = format(scheduledDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+
+  const handleCancel = async () => {
+    if (!confirm('确定要取消这场面试吗？')) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/interviews/${interview.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'CANCELLED' }),
+      });
+      if (!res.ok) throw new Error('取消面试失败');
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '取消面试失败');
+    } finally {
+      setCancelling(false);
+    }
+  };
   
   return (
     <tr className="group transition-colors hover:bg-muted/50">
-      <td className="px-4 py-4">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
+      <td className="px-3 py-3 w-[180px]">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm shrink-0">
             {interview.candidate.name.charAt(0)}
           </div>
-          <div>
-            <p className="font-medium text-foreground">{interview.candidate.name}</p>
-            <p className="text-xs text-muted-foreground">{interview.candidate.email}</p>
+          <div className="min-w-0">
+            <p className="font-medium text-foreground truncate">{interview.candidate.name}</p>
+            <p className="text-xs text-muted-foreground truncate" title={interview.candidate.email}>
+              {interview.candidate.email}
+            </p>
           </div>
         </div>
       </td>
-      <td className="px-4 py-4">
-        <div className="flex items-center gap-2">
-          <User className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-sm">{(interview as any).interviews?.map((i: any) => i.name).join(', ') || '-'}</span>
+      <td className="px-3 py-3">
+        <div className="flex flex-col gap-1">
+          {(interview as any).interviews?.map((i: any, idx: number) => (
+            <div key={idx} className="flex items-center gap-1.5 text-sm">
+              <User className="h-3 w-3 text-muted-foreground shrink-0" />
+              <span className="truncate">{i.name}</span>
+            </div>
+          )) || <span className="text-sm text-muted-foreground">-</span>}
         </div>
       </td>
-      <td className="px-4 py-4">
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${type.color}`}>
+      <td className="px-3 py-3">
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${type.color}`}>
           {type.label}
         </span>
       </td>
-      <td className="px-4 py-4">
+      <td className="px-3 py-3">
         <div className="flex flex-col">
           <span className={`text-sm font-medium ${isToday ? 'text-primary' : ''}`}>
             {isToday ? '今天' : format(scheduledDate, 'MM月dd日', { locale: zhCN })}
@@ -151,13 +205,13 @@ function InterviewRow({ interview }: { interview: Interview }) {
           </span>
         </div>
       </td>
-      <td className="px-4 py-4">
+      <td className="px-3 py-3">
         <span className={`status-badge ${status.className}`}>
           <status.icon className="h-3 w-3" />
           {status.label}
         </span>
       </td>
-      <td className="px-4 py-4">
+      <td className="px-3 py-3">
         {(() => {
           const score = calculateTotalScore(interview.scores);
           return score !== null ? (
@@ -175,7 +229,7 @@ function InterviewRow({ interview }: { interview: Interview }) {
           );
         })()}
       </td>
-      <td className="px-4 py-4 text-right">
+      <td className="px-3 py-3 text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -199,8 +253,12 @@ function InterviewRow({ interview }: { interview: Interview }) {
               </>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
-              取消面试
+            <DropdownMenuItem
+              className="text-destructive"
+              disabled={cancelling || interview.status === 'CANCELLED'}
+              onClick={handleCancel}
+            >
+              {cancelling ? '取消中...' : '取消面试'}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -216,24 +274,26 @@ export default function InterviewsPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  const fetchInterviews = async () => {
+    try {
+      const response = await fetch('/api/interviews');
+      if (!response.ok) {
+        throw new Error('获取面试列表失败');
+      }
+      const data = await response.json();
+      setInterviews(data);
+    } catch (err) {
+      console.error('获取面试列表错误:', err);
+      setError(err instanceof Error ? err.message : '获取面试列表失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchInterviews = async () => {
-      try {
-        const response = await fetch('/api/interviews');
-        if (!response.ok) {
-          throw new Error('获取面试列表失败');
-        }
-        const data = await response.json();
-        setInterviews(data);
-      } catch (err) {
-        console.error('获取面试列表错误:', err);
-        setError(err instanceof Error ? err.message : '获取面试列表失败');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchInterviews();
   }, []);
 
@@ -251,6 +311,18 @@ export default function InterviewsPage() {
     }
     return true;
   });
+
+  // 分页
+  const totalPages = Math.ceil(filteredInterviews.length / pageSize);
+  const paginatedInterviews = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredInterviews.slice(start, start + pageSize);
+  }, [filteredInterviews, currentPage]);
+
+  // 当筛选条件变化时重置页码
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, typeFilter, searchTerm]);
 
   // 统计
   const stats = {
@@ -319,9 +391,9 @@ export default function InterviewsPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* 面试列表 */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-3 space-y-4">
           {/* 筛选工具栏 */}
           <Card>
             <CardContent className="p-4">
@@ -401,21 +473,48 @@ export default function InterviewsPage() {
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>候选人</th>
+                        <th className="w-[180px]">候选人</th>
                         <th>面试官</th>
-                        <th>类型</th>
-                        <th>时间</th>
-                        <th>状态</th>
-                        <th>评分</th>
-                        <th className="text-right">操作</th>
+                        <th className="w-[100px]">类型</th>
+                        <th className="w-[140px]">时间</th>
+                        <th className="w-[120px]">状态</th>
+                        <th className="w-[100px]">评分</th>
+                        <th className="w-[50px] text-right">操作</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredInterviews.map((interview) => (
-                        <InterviewRow key={interview.id} interview={interview} />
+                      {paginatedInterviews.map((interview) => (
+                        <InterviewRow key={interview.id} interview={interview} onRefresh={fetchInterviews} />
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {/* 分页 */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    共 {filteredInterviews.length} 条，第 {currentPage}/{totalPages} 页
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      上一页
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      下一页
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

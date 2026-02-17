@@ -24,10 +24,10 @@ import {
 } from "@/app/components/ui/dropdown-menu"
 import { Button } from "@/app/components/ui/button"
 import { ThemeToggle } from "@/app/components/ui/theme-toggle"
+import { ChangePasswordDialog } from "./ChangePasswordDialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar"
 import { Badge } from "@/app/components/ui/badge"
 import {
-  User,
   LogOut,
   Menu,
   ChevronDown,
@@ -38,7 +38,6 @@ import {
   BarChart3,
   Target,
   Settings,
-  HelpCircle,
   Sparkles
 } from "lucide-react"
 import { cn } from "@/app/lib/utils"
@@ -292,24 +291,7 @@ const Navbar = () => {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/profile" className="cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
-                    个人资料
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    设置
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/help" className="cursor-pointer">
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    帮助中心
-                  </Link>
-                </DropdownMenuItem>
+                <ChangePasswordDialog />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => signOut()}

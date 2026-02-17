@@ -37,6 +37,7 @@ interface Candidate {
   email: string;
   currentPosition: string | null;
   currentCompany: string | null;
+  status: string;
 }
 
 interface User {
@@ -94,15 +95,21 @@ export default function CreateInterviewPage() {
           throw new Error('获取数据失败');
         }
 
-        const [candidatesData, usersData, jobsData] = await Promise.all([
+        const [candidatesData, usersData, jobsResponse] = await Promise.all([
           candidatesRes.json(),
           usersRes.json(),
           jobsRes.json(),
         ]);
 
-        setCandidates(candidatesData);
+        // 过滤掉已入职(EMPLOYED)、试用期(PROBATION)、人才池(TALENT_POOL)的候选人
+        const excludedStatuses = ['EMPLOYED', 'PROBATION', 'TALENT_POOL'];
+        const filteredCandidates = candidatesData.filter(
+          (c: Candidate) => !excludedStatuses.includes(c.status)
+        );
+        setCandidates(filteredCandidates);
         setInterviewers(usersData);
-        setJobPostings(jobsData);
+        // API 返回格式为 { jobs: [], pagination: {} }，需要提取 jobs 数组
+        setJobPostings(jobsResponse.jobs || []);
         
         // 检查URL参数
         const candidateId = searchParams.get('candidateId');

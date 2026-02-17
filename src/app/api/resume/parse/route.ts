@@ -1,20 +1,6 @@
 import { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { minioClient, BUCKET_NAME } from '@/lib/minio';
-import { parseResumeFile } from '@/lib/resume-parser';
-import { extractResumeData, ResumeValidationError } from '@/lib/llm';
-
-const prisma = new PrismaClient();
-
-async function downloadFromMinio(objectName: string): Promise<Buffer> {
-  const stream = await minioClient.getObject(BUCKET_NAME, objectName);
-  const chunks: Buffer[] = [];
-  return new Promise((resolve, reject) => {
-    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-    stream.on('end', () => resolve(Buffer.concat(chunks)));
-    stream.on('error', reject);
-  });
-}
+import { parseResumeFromStorage } from '@/lib/resume-parse-core';
+import { ResumeValidationError } from '@/lib/llm';
 
 export async function POST(request: NextRequest) {
   const { fileId, fileUrl, objectName, contentType, originalName } = await request.json();
@@ -34,80 +20,16 @@ export async function POST(request: NextRequest) {
       };
 
       try {
-        // 1. 下载文件
-        send('progress', { progress: 10, text: '正在从存储下载文件...' });
-        const minioObjectName = objectName || `resumes/${fileId}.pdf`;
-        const fileBuffer = await downloadFromMinio(minioObjectName);
-
-        // 2. 解析文件内容
-        send('progress', { progress: 25, text: '正在解析文件内容...' });
-        const fileType = contentType || 'application/pdf';
-        const markdown = await parseResumeFile(fileBuffer, fileType);
-
-        // 3. AI 分析（最耗时）
-        send('progress', { progress: 40, text: 'AI 正在分析简历，提取结构化信息...' });
-        const resumeData = await extractResumeData(markdown);
-
-        // 4. 保存候选人记录
-        send('progress', { progress: 80, text: '正在创建候选人档案...' });
-        const resumeFileUrl = fileUrl || minioObjectName;
-        const candidate = await prisma.candidate.upsert({
-          where: { email: resumeData.email },
-          update: {
-            name: resumeData.name,
-            phone: resumeData.phone,
-            education: resumeData.education,
-            workExperience: resumeData.workExperience,
-            currentPosition: resumeData.currentPosition,
-            currentCompany: resumeData.currentCompany,
-            resumeUrl: resumeFileUrl,
-            resumeFileName: originalName || undefined,
-            resumeContent: markdown,
-            initialScore: resumeData.initialScore,
-            totalScore: resumeData.initialScore,
-            aiEvaluation: resumeData.aiEvaluation,
-          },
-          create: {
-            name: resumeData.name || '未知姓名',
-            email: resumeData.email || 'unknown@example.com',
-            phone: resumeData.phone,
-            education: resumeData.education,
-            workExperience: resumeData.workExperience,
-            currentPosition: resumeData.currentPosition,
-            currentCompany: resumeData.currentCompany,
-            resumeUrl: resumeFileUrl,
-            resumeFileName: originalName || undefined,
-            resumeContent: markdown,
-            initialScore: resumeData.initialScore,
-            totalScore: resumeData.initialScore,
-            aiEvaluation: resumeData.aiEvaluation,
-            status: 'NEW',
-          },
+        const result = await parseResumeFromStorage({
+          fileId,
+          objectName,
+          contentType,
+          originalName,
+          fileUrl,
+          onProgress: (progress, text) => send('progress', { progress, text }),
         });
 
-        // 5. 创建标签
-        if (resumeData.tags && resumeData.tags.length > 0) {
-          send('progress', { progress: 90, text: `正在生成 ${resumeData.tags.length} 个人才标签...` });
-          const tagIds: string[] = [];
-          for (const t of resumeData.tags) {
-            const tag = await prisma.tag.upsert({
-              where: { name_category: { name: t.name, category: t.category } },
-              update: {},
-              create: { name: t.name, category: t.category },
-            });
-            tagIds.push(tag.id);
-          }
-          await prisma.candidate.update({
-            where: { id: candidate.id },
-            data: {
-              tags: { set: tagIds.map((id) => ({ id })) },
-            },
-          });
-        }
-
-        // 6. 完成
-        send('progress', { progress: 100, text: '解析完成！' });
-        send('done', { candidateId: candidate.id });
+        send('done', { candidateId: result.candidateId });
       } catch (error) {
         console.error('简历解析错误:', error);
         if (error instanceof ResumeValidationError) {

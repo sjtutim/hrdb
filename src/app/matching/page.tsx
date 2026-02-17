@@ -22,6 +22,8 @@ import {
   AlertCircle,
   Trash2,
   Loader2,
+  Clock,
+  CalendarClock,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -36,6 +38,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/app/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/app/components/ui/dropdown-menu';
 
 interface JobPosting {
   id: string;
@@ -95,6 +103,23 @@ interface TaskStatus {
   currentCandidate?: string | null;
   matches?: JobMatch[];
   error?: string | null;
+}
+
+interface ScheduledTask {
+  id: string;
+  jobPostingId: string;
+  candidateIds: string[];
+  scheduledFor: string;
+  status: string;
+  totalCandidates: number;
+  processedCount: number;
+  error: string | null;
+  createdAt: string;
+  jobPosting: {
+    id: string;
+    title: string;
+    department: string;
+  };
 }
 
 // 评分圆环组件
@@ -373,7 +398,7 @@ export default function MatchingPage() {
 
   const [matches, setMatches] = useState<JobMatch[]>([]);
   const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
-  const [selectedJobId, setSelectedJobIdState] = useState<string>(searchParams.get('jobId') || '');
+  const [selectedJobId, setSelectedJobIdState] = useState<string>(searchParams.get('jobPostingId') || '');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -389,6 +414,10 @@ export default function MatchingPage() {
   // 后台任务状态
   const [taskStatus, setTaskStatus] = useState<TaskStatus>({ status: 'idle' });
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 计划匹配状态
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
+  const [creatingScheduled, setCreatingScheduled] = useState(false);
 
   const isRunning = taskStatus.status === 'running';
 
@@ -448,6 +477,60 @@ export default function MatchingPage() {
     pollTaskStatus(jobId);
     pollingRef.current = setInterval(() => pollTaskStatus(jobId), 2000);
   }, [stopPolling, pollTaskStatus]);
+
+  // 加载计划匹配任务
+  const loadScheduledTasks = useCallback(async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/scheduled-matches?jobPostingId=${jobId}&status=PENDING`);
+      if (res.ok) {
+        setScheduledTasks(await res.json());
+      }
+    } catch (err) {
+      console.error('加载计划匹配任务失败:', err);
+    }
+  }, []);
+
+  // 创建计划匹配
+  const createScheduledMatch = async () => {
+    if (!selectedJobId || selectedCandidateIds.size === 0) return;
+    setCreatingScheduled(true);
+    try {
+      const res = await fetch('/api/scheduled-matches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobPostingId: selectedJobId,
+          candidateIds: Array.from(selectedCandidateIds),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || '创建失败');
+      }
+      await loadScheduledTasks(selectedJobId);
+    } catch (err) {
+      console.error('创建计划匹配失败:', err);
+      alert(err instanceof Error ? err.message : '创建计划匹配失败');
+    } finally {
+      setCreatingScheduled(false);
+    }
+  };
+
+  // 取消计划匹配
+  const cancelScheduledMatch = async (taskId: string) => {
+    if (!confirm('确定要取消这个计划匹配任务吗？')) return;
+    try {
+      const res = await fetch(`/api/scheduled-matches/${taskId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || '取消失败');
+      }
+      setScheduledTasks(prev => prev.filter(t => t.id !== taskId));
+    } catch (err) {
+      console.error('取消计划匹配失败:', err);
+      alert(err instanceof Error ? err.message : '取消计划匹配失败');
+    }
+  };
 
   // 组件卸载时清理
   useEffect(() => {
@@ -569,7 +652,7 @@ export default function MatchingPage() {
         setLoading(false);
       }
 
-      // 检查是否有运行中的任务
+      // 检查是否有运行中的任务 + 加载计划匹配
       if (selectedJobId) {
         try {
           const res = await fetch(`/api/matches/run?jobPostingId=${selectedJobId}`);
@@ -583,11 +666,12 @@ export default function MatchingPage() {
         } catch (err) {
           console.error('检查任务状态失败:', err);
         }
+        loadScheduledTasks(selectedJobId);
       }
     };
 
     fetchMatchesAndCheckTask();
-  }, [selectedJobId, stopPolling, startPolling]);
+  }, [selectedJobId, stopPolling, startPolling, loadScheduledTasks]);
 
   // 运行新的匹配
   const runNewMatching = async () => {
@@ -730,14 +814,42 @@ export default function MatchingPage() {
               )}
             </SelectContent>
           </Select>
-          <Button onClick={runNewMatching} disabled={isRunning || !selectedJobId || selectedCandidateIds.size === 0}>
-            {isRunning ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            {isRunning ? '匹配中...' : selectedCandidateIds.size > 0 ? `开始匹配 (${selectedCandidateIds.size}人)` : '开始匹配'}
-          </Button>
+          <div className="flex items-center">
+            <Button
+              onClick={runNewMatching}
+              disabled={isRunning || creatingScheduled || !selectedJobId || selectedCandidateIds.size === 0}
+              className="rounded-r-none"
+            >
+              {isRunning ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : creatingScheduled ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4 mr-2" />
+              )}
+              {isRunning ? '匹配中...' : creatingScheduled ? '创建中...' : selectedCandidateIds.size > 0 ? `开始匹配 (${selectedCandidateIds.size}人)` : '开始匹配'}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  disabled={isRunning || creatingScheduled || !selectedJobId || selectedCandidateIds.size === 0}
+                  className="rounded-l-none border-l border-primary-foreground/20 px-2"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={runNewMatching}>
+                  <Zap className="h-4 w-4 mr-2" />
+                  立即匹配
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={createScheduledMatch}>
+                  <Clock className="h-4 w-4 mr-2" />
+                  计划匹配 (凌晨2点)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
@@ -864,6 +976,44 @@ export default function MatchingPage() {
           <CardContent className="p-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             加载候选人列表...
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 计划匹配任务 */}
+      {scheduledTasks.length > 0 && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardContent className="p-4 space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-blue-600" />
+              计划匹配任务
+            </h3>
+            <div className="space-y-2">
+              {scheduledTasks.map(task => (
+                <div key={task.id} className="flex items-center justify-between p-3 rounded-lg bg-white border">
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-4 w-4 text-blue-500" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {task.totalCandidates} 位候选人
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        执行时间: {new Date(task.scheduledFor).toLocaleString('zh-CN')}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1 text-destructive hover:text-destructive"
+                    onClick={() => cancelScheduledMatch(task.id)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    取消
+                  </Button>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

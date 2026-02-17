@@ -107,6 +107,34 @@ const statusMap: Record<string, { label: string; className: string }> = {
   ARCHIVED: { label: '已归档', className: 'bg-gray-100 text-gray-800' },
 };
 
+// 计算面试综合评分：每个面试官的平均分的平均值
+function calculateInterviewScore(scores: { id: string; category: string; score: number }[]): number | null {
+  if (!scores || scores.length === 0) return null;
+
+  // 按面试官分组（这里简化处理，因为数据中没有 interviewerId）
+  const scoreList = scores.map(s => s.score);
+  if (scoreList.length === 0) return null;
+
+  const total = scoreList.reduce((sum, s) => sum + s, 0);
+  return total / scoreList.length;
+}
+
+// 计算所有面试的综合评分
+function calculateTotalInterviewScore(interviews: { scores: { id: string; category: string; score: number }[] }[]): number | null {
+  if (!interviews || interviews.length === 0) return null;
+
+  const allScores: number[] = [];
+  interviews.forEach((interview) => {
+    const interviewScore = calculateInterviewScore(interview.scores);
+    if (interviewScore !== null) {
+      allScores.push(interviewScore);
+    }
+  });
+
+  if (allScores.length === 0) return null;
+  return allScores.reduce((sum, s) => sum + s, 0) / allScores.length;
+}
+
 // 面试类型映射
 const interviewTypeMap: Record<string, string> = {
   PHONE: '线上面试',
@@ -450,6 +478,14 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
               <span className={`px-2 py-1 text-xs rounded-full ${status.className}`}>
                 {status.label}
               </span>
+              {(() => {
+                const interviewScore = calculateTotalInterviewScore(candidate.interviews || []);
+                return interviewScore !== null ? (
+                  <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 font-medium">
+                    面试评分: {interviewScore.toFixed(1)}
+                  </span>
+                ) : null;
+              })()}
             </div>
             <p className="text-muted-foreground mt-1">
               创建于 {formatDate(candidate.createdAt)} · 更新于 {formatDate(candidate.updatedAt)}
@@ -463,12 +499,14 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
               编辑
             </Link>
           </Button>
-          <Button variant="outline" asChild>
-            <Link href={`/interviews/create?candidateId=${candidate.id}`}>
-              <Calendar className="h-4 w-4 mr-2" />
-              安排面试
-            </Link>
-          </Button>
+          {!['EMPLOYED', 'PROBATION', 'TALENT_POOL'].includes(candidate.status) && (
+            <Button variant="outline" asChild>
+              <Link href={`/interviews/create?candidateId=${candidate.id}`}>
+                <Calendar className="h-4 w-4 mr-2" />
+                安排面试
+              </Link>
+            </Button>
+          )}
           {(candidate.status === 'OFFERED' || candidate.status === 'ONBOARDING') && !candidate.employeeRecord && (
             <Dialog open={onboardOpen} onOpenChange={(open) => { setOnboardOpen(open); if (!open) setOnboardError(null); }}>
               <DialogTrigger asChild>
@@ -639,87 +677,6 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
             </Card>
           )}
 
-          {/* 面试记录 */}
-          {candidate.interviews && candidate.interviews.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  面试记录
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {candidate.interviews.map((interview) => (
-                    <div
-                      key={interview.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">
-                            {interviewTypeMap[interview.type] || interview.type}
-                          </span>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-800">
-                            {interviewStatusMap[interview.status] || interview.status}
-                          </span>
-                          {interview.decision && (
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded-full ${
-                                interview.decision === 'PASS'
-                                  ? 'bg-green-100 text-green-800'
-                                  : interview.decision === 'FAIL'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}
-                            >
-                              {decisionMap[interview.decision] || interview.decision}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          面试官: {(interview as any).interviews?.map((i: any) => i.name).join(', ') || '-'} · {formatDate(interview.scheduledAt)}
-                        </p>
-                      </div>
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/interviews/${interview.id}`}>查看详情</Link>
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* 岗位匹配 */}
-          {candidate.jobMatches && candidate.jobMatches.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>岗位匹配</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {candidate.jobMatches.map((match) => (
-                    <div
-                      key={match.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div>
-                        <p className="font-medium">{match.jobPosting.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {match.jobPosting.department}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-medium">{match.matchScore.toFixed(1)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         {/* 右侧列 - 评分、标签等 */}
@@ -842,6 +799,96 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
               )}
             </CardContent>
           </Card>
+
+          {/* 面试记录 */}
+          {candidate.interviews && candidate.interviews.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  面试记录
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {candidate.interviews.map((interview) => (
+                    <div
+                      key={interview.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm">
+                            {interviewTypeMap[interview.type] || interview.type}
+                          </span>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-800">
+                            {interviewStatusMap[interview.status] || interview.status}
+                          </span>
+                          {interview.decision && (
+                            <span
+                              className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                interview.decision === 'PASS'
+                                  ? 'bg-green-100 text-green-800'
+                                  : interview.decision === 'FAIL'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}
+                            >
+                              {decisionMap[interview.decision] || interview.decision}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          {formatDate(interview.scheduledAt)}
+                        </p>
+                        {interview.scores && interview.scores.length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            评分: {(() => {
+                              const score = calculateInterviewScore(interview.scores);
+                              return score !== null ? score.toFixed(1) : '-';
+                            })()}
+                          </p>
+                        )}
+                      </div>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/interviews/${interview.id}`}>详情</Link>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 岗位匹配 */}
+          {candidate.jobMatches && candidate.jobMatches.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>岗位匹配</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {candidate.jobMatches.map((match) => (
+                    <div
+                      key={match.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{match.jobPosting.title}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {match.jobPosting.department}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        <span className="font-medium text-sm">{match.matchScore.toFixed(1)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* 评分 */}
           <Card>

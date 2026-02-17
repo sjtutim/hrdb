@@ -26,22 +26,6 @@ interface JobPosting {
   tags: Tag[];
 }
 
-interface MatchResult {
-  id: string;
-  type: 'candidate' | 'employee';
-  name: string;
-  email: string;
-  currentPosition: string | null;
-  currentCompany: string | null;
-  employeeId?: string;
-  tags: Tag[];
-  matchScore: number;
-  matchedTags: string[];
-  missingTags: string[];
-  extraTags: string[];
-  evaluation: string;
-}
-
 export default function JobDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [job, setJob] = useState<JobPosting | null>(null);
@@ -52,13 +36,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
     error: string | null;
   }>({ loading: false, error: null });
 
-  // 人才匹配相关状态
-  const [matchSource, setMatchSource] = useState<'candidate' | 'employee'>('candidate');
-  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
-  const [matchLoading, setMatchLoading] = useState(false);
-  const [matchError, setMatchError] = useState<string | null>(null);
-  const [showMatchPanel, setShowMatchPanel] = useState(false);
-  const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+  // 人才匹配相关状态（已移除，使用统一的 /matching 页面）
 
   // 获取职位详情
   useEffect(() => {
@@ -112,28 +90,6 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       });
     } finally {
       setUpdateStatus({ loading: false, error: null });
-    }
-  };
-
-  // 实时人才匹配
-  const runRealtimeMatch = async (source: 'candidate' | 'employee') => {
-    setMatchSource(source);
-    setMatchLoading(true);
-    setMatchError(null);
-    setShowMatchPanel(true);
-    try {
-      const response = await fetch(`/api/job-postings/${params.id}/match-realtime`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source }),
-      });
-      if (!response.ok) throw new Error('匹配失败');
-      const data = await response.json();
-      setMatchResults(data.results);
-    } catch (err) {
-      setMatchError(err instanceof Error ? err.message : '匹配失败');
-    } finally {
-      setMatchLoading(false);
     }
   };
 
@@ -219,28 +175,14 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           >
             编辑
           </Link>
-          <button
-            onClick={() => runRealtimeMatch(matchSource)}
-            disabled={matchLoading}
-            className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 inline-flex items-center gap-1.5 transition-colors"
-          >
-            {matchLoading ? (
-              <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-              </svg>
-            )}
-            人才匹配
-          </button>
           <Link
-            href={`/jobs/${job.id}/matches`}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            href={`/matching?jobPostingId=${job.id}`}
+            className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 inline-flex items-center gap-1.5 transition-colors"
           >
-            查看匹配
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+            </svg>
+            人才匹配
           </Link>
         </div>
       </div>
@@ -346,224 +288,6 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       </div>
-
-      {/* 人才匹配面板 */}
-      {showMatchPanel && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-              实时人才匹配
-            </h2>
-            <button
-              onClick={() => setShowMatchPanel(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 6 6 18" /><path d="m6 6 12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* 匹配来源切换 */}
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => runRealtimeMatch('candidate')}
-              disabled={matchLoading}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                matchSource === 'candidate'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              候选人匹配
-            </button>
-            <button
-              onClick={() => runRealtimeMatch('employee')}
-              disabled={matchLoading}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                matchSource === 'employee'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              公司人才库匹配
-            </button>
-          </div>
-
-          {/* 匹配结果 */}
-          {matchLoading ? (
-            <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-              <p className="mt-2 text-gray-600">正在匹配中...</p>
-            </div>
-          ) : matchError ? (
-            <div className="bg-red-50 text-red-700 p-4 rounded-md">{matchError}</div>
-          ) : matchResults.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              暂无匹配的{matchSource === 'candidate' ? '候选人' : '员工'}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-500">
-                共找到 {matchResults.length} 位匹配的{matchSource === 'candidate' ? '候选人' : '员工'}
-              </p>
-              {matchResults.map((result) => {
-                const isExpanded = expandedMatchId === result.id;
-                const scoreColor =
-                  result.matchScore >= 80
-                    ? 'text-green-600 bg-green-50 border-green-200'
-                    : result.matchScore >= 60
-                    ? 'text-amber-600 bg-amber-50 border-amber-200'
-                    : 'text-red-600 bg-red-50 border-red-200';
-                const barColor =
-                  result.matchScore >= 80
-                    ? 'bg-green-500'
-                    : result.matchScore >= 60
-                    ? 'bg-amber-500'
-                    : 'bg-red-500';
-
-                return (
-                  <div
-                    key={result.id}
-                    className="border rounded-lg overflow-hidden hover:shadow-sm transition-shadow"
-                  >
-                    {/* 基本信息行 */}
-                    <div
-                      className="p-4 flex items-center gap-4 cursor-pointer"
-                      onClick={() => setExpandedMatchId(isExpanded ? null : result.id)}
-                    >
-                      {/* 分数 */}
-                      <div className={`flex-shrink-0 w-14 h-14 rounded-full border-2 flex items-center justify-center font-bold text-lg ${scoreColor}`}>
-                        {Math.round(result.matchScore)}
-                      </div>
-
-                      {/* 人员信息 */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">{result.name}</span>
-                          {result.type === 'employee' && result.employeeId && (
-                            <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
-                              工号: {result.employeeId}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-500 truncate">
-                          {result.currentPosition || '职位未知'}
-                          {result.currentCompany && ` · ${result.currentCompany}`}
-                        </p>
-                      </div>
-
-                      {/* 匹配进度条 */}
-                      <div className="hidden sm:block w-32">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all ${barColor}`}
-                            style={{ width: `${result.matchScore}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* 展开箭头 */}
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className={`h-5 w-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </div>
-
-                    {/* 展开详情 */}
-                    {isExpanded && (
-                      <div className="px-4 pb-4 border-t bg-gray-50">
-                        <div className="pt-4 space-y-4">
-                          {/* 技能对比 */}
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 mb-2">技能关键字对比</h4>
-                            <div className="space-y-2">
-                              {result.matchedTags.length > 0 && (
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="text-xs font-medium text-green-700 flex items-center gap-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6 9 17l-5-5"/></svg>
-                                    匹配:
-                                  </span>
-                                  {result.matchedTags.map(tag => (
-                                    <span key={tag} className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 border border-green-200">
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              {result.missingTags.length > 0 && (
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="text-xs font-medium text-red-700 flex items-center gap-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                                    缺少:
-                                  </span>
-                                  {result.missingTags.map(tag => (
-                                    <span key={tag} className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-600 border border-red-200">
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              {result.extraTags.length > 0 && (
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="text-xs font-medium text-blue-700 flex items-center gap-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
-                                    额外:
-                                  </span>
-                                  {result.extraTags.map(tag => (
-                                    <span key={tag} className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-600 border border-blue-200">
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* AI 评估 */}
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 mb-1">AI 评估</h4>
-                            <p className="text-sm text-gray-600 leading-relaxed">{result.evaluation}</p>
-                          </div>
-
-                          {/* 操作按钮 */}
-                          <div className="flex gap-2 pt-2">
-                            <Link
-                              href={result.type === 'candidate' ? `/candidates/${result.id}` : `/employees/${result.id}`}
-                              className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                            >
-                              查看详情
-                            </Link>
-                            {result.type === 'candidate' && (
-                              <Link
-                                href={`/interviews/create?candidateId=${result.id}&jobId=${params.id}`}
-                                className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700"
-                              >
-                                安排面试
-                              </Link>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

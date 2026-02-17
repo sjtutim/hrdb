@@ -1,18 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 
 // 获取所有面试
 export async function GET(request: NextRequest) {
   try {
+    // 获取当前登录用户
+    const session = await getServerSession(authOptions);
+
+    // 如果未登录，返回空数组
+    if (!session?.user?.id) {
+      return NextResponse.json([]);
+    }
+
+    // 查找当前用户
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+    });
+
+    // 管理员可以看到所有面试，其他用户只看到自己参与的
+    const isAdmin = currentUser?.role === 'ADMIN';
+
+    const where = isAdmin
+      ? {}
+      : {
+          OR: [
+            {
+              interviews: {
+                some: {
+                  id: session.user.id,
+                },
+              },
+            },
+            {
+              createdById: session.user.id,
+            },
+          ],
+        };
+
     const interviews = await prisma.interview.findMany({
+      where,
       include: {
         candidate: {
           select: {
             id: true,
             name: true,
             email: true,
+            currentPosition: true,
           },
         },
         interviews: {
@@ -22,13 +59,22 @@ export async function GET(request: NextRequest) {
             email: true,
           },
         },
-        scores: true,
+        scores: {
+          include: {
+            interviewer: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         scheduledAt: 'desc',
       },
     });
-    
+
     return NextResponse.json(interviews);
   } catch (error) {
     console.error('获取面试列表错误:', error);
@@ -43,6 +89,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
+    const session = await getServerSession(authOptions);
 
     // 验证必要字段
     if (!data.candidateId || !data.interviewerIds || !data.type || !data.scheduledAt) {
@@ -59,6 +106,7 @@ export async function POST(request: NextRequest) {
         interviews: {
           connect: data.interviewerIds.map((id: string) => ({ id })),
         },
+        createdById: session?.user?.id || null,
         type: data.type,
         scheduledAt: new Date(data.scheduledAt),
         location: data.location || null,
@@ -71,6 +119,7 @@ export async function POST(request: NextRequest) {
             id: true,
             name: true,
             email: true,
+            currentPosition: true,
           },
         },
         interviews: {

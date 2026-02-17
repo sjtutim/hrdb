@@ -399,7 +399,7 @@ export default function DashboardPage() {
 
         setCandidates(candidateData);
         setInterviews(interviewData);
-        setJobPostings(jobsData);
+        setJobPostings(jobsData.jobs || jobsData);
         setEmployees(employeeData.employees || []);
       } catch (error) {
         console.error('加载仪表盘数据失败:', error);

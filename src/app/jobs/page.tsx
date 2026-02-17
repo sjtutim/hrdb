@@ -4,16 +4,17 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { 
-  Briefcase, 
-  Plus, 
-  Search, 
-  MoreHorizontal, 
+import {
+  Briefcase,
+  Plus,
+  Search,
+  MoreHorizontal,
   Users,
   Calendar,
   ArrowRight,
-  Filter,
-  AlertCircle
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -39,39 +40,55 @@ interface JobPosting {
   id: string;
   title: string;
   department: string;
-  location?: string;
+  description: string;
+  requirements: string;
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED';
   createdAt: string;
   updatedAt: string;
   expiresAt: string | null;
   tags: Tag[];
-  applicantsCount?: number;
+  matchesCount: number;
+}
+
+// 分页类型
+interface Pagination {
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 // 状态配置
 const statusConfig = {
-  DRAFT: { 
-    label: '草稿', 
+  DRAFT: {
+    label: '草稿',
     className: 'status-draft',
     description: '未发布'
   },
-  ACTIVE: { 
-    label: '招聘中', 
+  ACTIVE: {
+    label: '招聘中',
     className: 'status-active',
     description: '正在接受申请'
   },
-  PAUSED: { 
-    label: '已暂停', 
+  PAUSED: {
+    label: '已暂停',
     className: 'status-paused',
     description: '暂停接收申请'
   },
 };
 
+// 截取文本简介
+function truncateText(text: string, maxLength: number = 80): string {
+  if (!text) return '暂无描述';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
+}
+
 // 职位卡片组件
-function JobCard({ job }: { job: JobPosting }) {
+function JobCard({ job, onDelete }: { job: JobPosting; onDelete: (id: string) => void }) {
   const status = statusConfig[job.status];
   const isExpired = job.expiresAt && new Date(job.expiresAt) < new Date();
-  
+
   return (
     <Card className="card-hover group">
       <CardContent className="p-5">
@@ -87,21 +104,26 @@ function JobCard({ job }: { job: JobPosting }) {
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-1">{job.department}</p>
-            
+
+            {/* 岗位描述简介 */}
+            <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+              {truncateText(job.description, 100)}
+            </p>
+
             <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
-                截止: {job.expiresAt 
+                截止: {job.expiresAt
                   ? format(new Date(job.expiresAt), 'MM/dd', { locale: zhCN })
                   : '未设置'
                 }
               </span>
               <span className="flex items-center gap-1">
                 <Users className="h-3.5 w-3.5" />
-                {job.applicantsCount || 0} 位申请者
+                {job.matchesCount || 0} 位匹配候选人
               </span>
             </div>
-            
+
             {job.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-3">
                 {job.tags.slice(0, 4).map((tag) => (
@@ -117,7 +139,7 @@ function JobCard({ job }: { job: JobPosting }) {
               </div>
             )}
           </div>
-          
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
@@ -134,16 +156,23 @@ function JobCard({ job }: { job: JobPosting }) {
                 <Link href={`/jobs/${job.id}/edit`}>编辑职位</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href={`/jobs/${job.id}/matches`}>查看匹配</Link>
+                <Link href={`/matching?jobPostingId=${job.id}`}>人才匹配</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => {
+                  if (confirm(`确定要删除职位"${job.title}"吗？`)) {
+                    onDelete(job.id);
+                  }
+                }}
+              >
                 删除职位
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        
+
         <div className="flex items-center justify-between mt-4 pt-4 border-t">
           <span className="text-xs text-muted-foreground">
             创建于 {format(new Date(job.createdAt), 'yyyy-MM-dd', { locale: zhCN })}
@@ -166,50 +195,81 @@ export default function JobsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'DRAFT' | 'PAUSED'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [pagination, setPagination] = useState<Pagination>({
+    total: 0,
+    page: 1,
+    pageSize: 12,
+    totalPages: 0,
+  });
 
-  // 获取所有职位
-  useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/job-postings');
-        if (!response.ok) {
-          throw new Error('获取职位列表失败');
-        }
-        const data = await response.json();
-        // 添加模拟的申请者数量
-        const dataWithCounts = data.map((job: JobPosting) => ({
-          ...job,
-          applicantsCount: Math.floor(Math.random() * 20),
-        }));
-        setJobs(dataWithCounts);
-      } catch (err) {
-        console.error('获取职位错误:', err);
-        setError(err instanceof Error ? err.message : '获取职位列表失败');
-      } finally {
-        setLoading(false);
+  // 获取职位列表
+  const fetchJobs = async (page: number = 1) => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      params.set('page', page.toString());
+      params.set('pageSize', pagination.pageSize.toString());
+      if (filter !== 'ALL') {
+        params.set('status', filter);
       }
-    };
 
-    fetchJobs();
-  }, []);
+      const response = await fetch(`/api/job-postings?${params}`);
+      if (!response.ok) {
+        throw new Error('获取职位列表失败');
+      }
+      const data = await response.json();
+      setJobs(data.jobs || []);
+      setPagination(data.pagination || { total: 0, page: 1, pageSize: 12, totalPages: 0 });
+    } catch (err) {
+      console.error('获取职位错误:', err);
+      setError(err instanceof Error ? err.message : '获取职位列表失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // 根据状态筛选职位
-  const filteredJobs = jobs
-    .filter(job => filter === 'ALL' || job.status === filter)
-    .filter(job => {
-      if (!searchTerm) return true;
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        job.title.toLowerCase().includes(searchLower) ||
-        job.department.toLowerCase().includes(searchLower) ||
-        job.tags.some(tag => tag.name.toLowerCase().includes(searchLower))
-      );
-    });
+  useEffect(() => {
+    fetchJobs(1);
+  }, [filter]);
+
+  // 处理分页变化
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      fetchJobs(newPage);
+    }
+  };
+
+  // 删除职位
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/job-postings/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error('删除失败');
+      }
+      // 刷新列表
+      fetchJobs(pagination.page);
+    } catch (err) {
+      console.error('删除职位错误:', err);
+      alert(err instanceof Error ? err.message : '删除失败');
+    }
+  };
+
+  // 根据搜索词过滤（前端过滤）
+  const filteredJobs = jobs.filter(job => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      job.title.toLowerCase().includes(searchLower) ||
+      job.department.toLowerCase().includes(searchLower) ||
+      job.tags.some(tag => tag.name.toLowerCase().includes(searchLower))
+    );
+  });
 
   // 统计
   const stats = {
-    total: jobs.length,
+    total: pagination.total,
     active: jobs.filter(j => j.status === 'ACTIVE').length,
     draft: jobs.filter(j => j.status === 'DRAFT').length,
     paused: jobs.filter(j => j.status === 'PAUSED').length,
@@ -223,7 +283,7 @@ export default function JobsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">职位管理</h1>
           <p className="text-muted-foreground mt-1">
-            管理 {stats.total} 个职位，{stats.active} 个正在招聘中
+            共 {pagination.total} 个职位，{stats.active} 个正在招聘中
           </p>
         </div>
         <Button asChild>
@@ -290,7 +350,7 @@ export default function JobsPage() {
               />
             </div>
             <div className="flex gap-2">
-              {( ['ALL', 'ACTIVE', 'DRAFT', 'PAUSED'] as const).map((f) => (
+              {(['ALL', 'ACTIVE', 'DRAFT', 'PAUSED'] as const).map((f) => (
                 <Button
                   key={f}
                   variant={filter === f ? 'default' : 'outline'}
@@ -342,11 +402,45 @@ export default function JobsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredJobs.map((job) => (
-            <JobCard key={job.id} job={job} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredJobs.map((job) => (
+              <JobCard key={job.id} job={job} onDelete={handleDelete} />
+            ))}
+          </div>
+
+          {/* 分页 */}
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                显示 {filteredJobs.length} 条结果，共 {pagination.total} 条
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.page <= 1}
+                  onClick={() => handlePageChange(pagination.page - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  上一页
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  第 {pagination.page} / {pagination.totalPages} 页
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.page >= pagination.totalPages}
+                  onClick={() => handlePageChange(pagination.page + 1)}
+                >
+                  下一页
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
