@@ -26,6 +26,7 @@
 | ![Dashboard](001.png) | ![Candidates](002.png) |
 | ![Job Postings](003.png) | ![Matching](004.png) |
 | ![Interviews](005.png) | ![Employees](006.png) |
+| ![Admin](007.png) | ![Reports](008.png) |
 
 ### Tech Stack
 
@@ -140,6 +141,7 @@ MIT License
 | ![仪表盘](001.png) | ![候选人管理](002.png) |
 | ![职位管理](003.png) | ![智能匹配](004.png) |
 | ![面试管理](005.png) | ![员工管理](006.png) |
+| ![系统管理](007.png) | ![报表统计](008.png) |
 
 ### 技术栈
 
