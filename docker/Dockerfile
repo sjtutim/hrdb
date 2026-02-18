@@ -35,4 +35,5 @@ ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY prisma ./prisma
+COPY scripts ./scripts
 CMD ["npx", "prisma", "migrate", "deploy"]

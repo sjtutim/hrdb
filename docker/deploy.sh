@@ -64,6 +64,11 @@ run_migration() {
   compose run --rm migrate
 }
 
+run_seed() {
+  echo "[INFO] Running database seed..."
+  compose run --rm migrate npx prisma db seed
+}
+
 start_stack() {
   echo "[INFO] Starting postgres..."
   compose up -d postgres
@@ -106,6 +111,11 @@ case "$cmd" in
     ensure_local_images
     run_migration
     ;;
+  seed)
+    compose up -d postgres
+    sleep 3
+    run_seed
+    ;;
   ps)
     compose ps
     ;;
@@ -143,6 +153,7 @@ Commands:
   deploy                 Always build latest images, then start postgres -> migrate -> app
   deploy-reuse           Try reusing local images; build only if image is missing
   migrate                Start postgres and run migration once
+  seed                   Run database seed (create admin user and tags)
   ps                     Show services status
   logs                   Follow app/postgres logs
   restart                Restart app service
