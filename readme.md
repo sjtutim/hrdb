@@ -106,6 +106,12 @@ prisma/
 └── migrations/       # Database migrations
 ```
 
+### Community
+
+Scan the QR code below to join our discussion group:
+
+<img src="scaning.png" alt="Join Discussion Group" width="200" />
+
 ### License
 
 MIT License
@@ -213,6 +219,12 @@ prisma/
 ├── schema.prisma     # 数据库模型
 └── migrations/       # 数据库迁移
 ```
+
+### 交流群
+
+讨论AI技术在HR行业的应用，扫描下方二维码加入讨论群：
+
+<img src="scaning.png" alt="扫码入群" width="200" />
 
 ### 开源协议
 
