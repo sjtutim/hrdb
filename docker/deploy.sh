@@ -69,6 +69,17 @@ run_seed() {
   compose run --rm migrate npx prisma db seed
 }
 
+run_migrate_status() {
+  echo "[INFO] Checking Prisma migration status..."
+  compose run --rm migrate npx prisma migrate status
+}
+
+run_migrate_resolve() {
+  local migration_name="$1"
+  echo "[INFO] Resolving stuck migration: $migration_name"
+  compose run --rm migrate npx prisma migrate resolve --applied "$migration_name"
+}
+
 start_stack() {
   echo "[INFO] Starting postgres..."
   compose up -d postgres
@@ -116,6 +127,22 @@ case "$cmd" in
     sleep 3
     run_seed
     ;;
+  migrate-status)
+    compose up -d postgres
+    ensure_local_images
+    run_migrate_status
+    ;;
+  migrate-resolve)
+    MIGRATION_NAME="${2:-}"
+    if [ -z "$MIGRATION_NAME" ]; then
+      echo "[ERROR] Usage: $0 migrate-resolve <migration_name>"
+      echo "  Example: $0 migrate-resolve 20260216_add_interviewer_id_to_interview_score"
+      exit 1
+    fi
+    compose up -d postgres
+    ensure_local_images
+    run_migrate_resolve "$MIGRATION_NAME"
+    ;;
   ps)
     compose ps
     ;;
@@ -153,6 +180,8 @@ Commands:
   deploy                 Always build latest images, then start postgres -> migrate -> app
   deploy-reuse           Try reusing local images; build only if image is missing
   migrate                Start postgres and run migration once
+  migrate-status         Show pending/applied migration status
+  migrate-resolve NAME   Mark a stuck/failed migration as applied (unblocks prisma)
   seed                   Run database seed (create admin user and tags)
   ps                     Show services status
   logs                   Follow app/postgres logs
