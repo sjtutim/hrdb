@@ -1,4 +1,4 @@
-# Dunwill HeroBase
+# Inno HeroBase
 
 [English](#english) | [中文](#中文)
 
@@ -8,7 +8,7 @@
 
 ### Overview
 
-**Dunwill HeroBase** is an AI-powered HR talent management system designed to streamline the entire recruitment and employee lifecycle management process.
+**Inno HeroBase** is an AI-powered HR talent management system designed to streamline the entire recruitment and employee lifecycle management process.
 
 ### Features
 
@@ -18,6 +18,14 @@
 - **Intelligent Matching** - AI-driven candidate-to-job matching with scoring
 - **Interview Management** - Schedule and track interviews with calendar view
 - **Employee Lifecycle** - Track probation, performance reviews, rewards and penalties
+
+### Screenshots
+
+| | |
+|:---:|:---:|
+| ![Dashboard](001.png) | ![Candidates](002.png) |
+| ![Job Postings](003.png) | ![Matching](004.png) |
+| ![Interviews](005.png) | ![Employees](006.png) |
 
 ### Tech Stack
 
@@ -42,8 +50,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/dunwill-herobase.git
-cd dunwill-herobase
+git clone https://github.com/your-org/Inno-herobase.git
+cd Inno-herobase
 
 # Install dependencies
 npm install
@@ -62,7 +70,7 @@ npm run dev
 
 Visit `http://localhost:4005`
 
-Default admin: `xuhuayong@dunwill.com` / `123456A`
+Default admin: `xuhuayong@Inno.com` / `123456A`
 
 ### Docker Deployment
 
@@ -108,7 +116,7 @@ MIT License
 
 ### 项目简介
 
-**Dunwill HeroBase（公司人才库）** 是一个 AI 驱动的人力资源管理系统，旨在优化从招聘到员工全生命周期的管理流程。
+**Inno HeroBase（公司人才库）** 是一个 AI 驱动的人力资源管理系统，旨在优化从招聘到员工全生命周期的管理流程。
 
 ### 核心功能
 
@@ -118,6 +126,14 @@ MIT License
 - **智能匹配** - AI 驱动的候选人-职位匹配评分
 - **面试管理** - 日历视图的面试安排和跟踪
 - **员工生命周期** - 试用期、绩效考核、奖惩记录管理
+
+### 系统截图
+
+| | |
+|:---:|:---:|
+| ![仪表盘](001.png) | ![候选人管理](002.png) |
+| ![职位管理](003.png) | ![智能匹配](004.png) |
+| ![面试管理](005.png) | ![员工管理](006.png) |
 
 ### 技术栈
 
@@ -142,8 +158,8 @@ MIT License
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-org/dunwill-herobase.git
-cd dunwill-herobase
+git clone https://github.com/your-org/Inno-herobase.git
+cd Inno-herobase
 
 # 安装依赖
 npm install
@@ -162,7 +178,7 @@ npm run dev
 
 访问 `http://localhost:4005`
 
-默认管理员：`xuhuayong@dunwill.com` / `123456A`
+默认管理员：`xuhuayong@Inno.com` / `123456A`
 
 ### Docker 部署
 

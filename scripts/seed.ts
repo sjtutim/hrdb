@@ -102,7 +102,7 @@ async function main() {
   // 检查是否已存在admin用户
   const existingAdmin = await prisma.user.findUnique({
     where: {
-      email: 'xuhuayong@dunwill.com',
+      email: 'xuhuayong@Inno.com',
     },
   });
 
@@ -113,7 +113,7 @@ async function main() {
     const admin = await prisma.user.create({
       data: {
         name: 'Xuhuayong',
-        email: 'xuhuayong@dunwill.com',
+        email: 'xuhuayong@Inno.com',
         password: hashedPassword,
         role: 'ADMIN',
       },

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-公司人才库 (Dunwill HeroBase) - An AI-powered HR talent management system for resume parsing, candidate tracking, job matching, and interview scheduling.
+公司人才库 (Inno HeroBase) - An AI-powered HR talent management system for resume parsing, candidate tracking, job matching, and interview scheduling.
 
 ## Tech Stack
 
@@ -20,7 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev          # Start development server
 npm run build        # Build for production
 npm run lint         # Run ESLint
-npm run seed         # Seed database with admin user (xuhuayong@dunwill.com / 123456A)
+npm run seed         # Seed database with admin user (xuhuayong@Inno.com / 123456A)
 npx prisma generate  # Regenerate Prisma client after schema changes
 npx prisma migrate dev --name <name>  # Create new migration
 npx prisma studio    # Open Prisma database GUI
