@@ -1,0 +1,57 @@
+name: hrdb
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hrdb-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PG_USER:-hrdb}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-hrdb_password}
+      POSTGRES_DB: ${PG_DATABASE:-hrdb}
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-hrdb} -d ${PG_DATABASE:-hrdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    image: ${APP_IMAGE:-hrdb/app:local}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: runner
+    container_name: hrdb-app
+    restart: unless-stopped
+    env_file:
+      - ./.env.docker
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+  migrate:
+    image: ${MIGRATE_IMAGE:-hrdb/migrate:local}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: migrator
+    profiles: ["ops"]
+    env_file:
+      - ./.env.docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  postgres_data:
+    name: hrdb_postgres_data

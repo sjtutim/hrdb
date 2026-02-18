@@ -1,103 +1,203 @@
-以下是上述内容的markdown源代码：
-# 公司人才库（Dunwill HeroBase）功能
+# Dunwill HeroBase
 
-选用的技术栈：
-next.js
-posgtres
-prisma
-Next-Auth
+[English](#english) | [中文](#中文)
 
-数据库地址：
-PG_HOST=postgres.orb.local
-PG_PORT=5432
-PG_USER=eltadmin
-PG_PASSWORD=112233Ab
-PG_DATABASE=herobase
+---
 
+## English
 
-## 一、AI辅助人才建档
-- **功能需求**：上传PDF格式简历，自动解析转换为Markdown格式文字，利用大语言模型识别基本信息填入数据库形成基本档案。
-- **设计细节**：
-    - 支持PDF文件上传。
-    - 集成DeepSeek模型和Kimi长文本模型api解析简历内容。
-    - 自动提取个人基本信息填充字段。
-    - 根据业务需求设置简历评分算法，生成人才初始分。
+### Overview
 
-## 二、人才简历标签化
-- **功能需求**：依据公司岗位需求和业务领域对简历内容智能打标签。
-- **设计细节**：
-    - 预设技能、行业等标签（如编程语言、工作年限等）。
-    - 使用大语言模型进行关键词提取分类添加标签。
-    - 根据岗位需求智能选择合适标签构建多维度标签体系。
+**Dunwill HeroBase** is an AI-powered HR talent management system designed to streamline the entire recruitment and employee lifecycle management process.
 
-## 三、岗位需求库
-- **功能需求**：根据岗位要求形成岗位需求库。
-- **设计细节**：
-    - 岗位描述包含职位名称、职责、技能、学历、经验要求等。
-    - 设置岗位时效性激活。
-    - 对接大语言模型自动化生成或优化岗位描述。
-    - 标准化岗位要求便于与简历匹配。
-    - 智能形成招聘关键字用于收集简历。
+### Features
 
-## 四、人才动态匹配打分
-- **功能需求**：通过大语言模型自动匹配简历和岗位需求给出评分并加入人才初始分。
-- **设计细节**：
-    - 采用自然语言处理技术进行语义匹配。
-    - 基于多维度（技能、经验、学历等）进行简历评分。
-    - 将简历与多个岗位匹配评分动态调整人才分数。
+- **AI Resume Parsing** - Upload PDF resumes, automatically extract and structure candidate information
+- **Smart Tagging** - AI-powered skill and industry tag classification
+- **Job Posting Management** - Create and manage job postings with AI-assisted descriptions
+- **Intelligent Matching** - AI-driven candidate-to-job matching with scoring
+- **Interview Management** - Schedule and track interviews with calendar view
+- **Employee Lifecycle** - Track probation, performance reviews, rewards and penalties
 
-## 五、入职前招聘阶段评估打分（面试记录）
-- **功能需求**：记录面试情况（含电话面试），通过评分机制评估求职者，分数加入总分。
-- **设计细节**：
-    - 文字化面试记录，分技术、HR、性格测试等维度。
-    - 面试官人工输入评分，系统自动汇总加权。
-    - 基于面试记录人工智能评分反馈调整面试分数。
+### Tech Stack
 
-## 六、招聘人员人工打分（人工评价权重分）
-- **功能需求**：招聘主管等根据综合因素人工打分完成人才档案，不通过则归档。
-- **设计细节**：
-    - 提供面试后总结表格进行综合打分。
-    - 根据评分决定是否进入下一轮招聘，不通过归档避免重复申请。
+| Category | Technology |
+|----------|------------|
+| Framework | Next.js 14 (App Router) |
+| Database | PostgreSQL + Prisma ORM |
+| Authentication | NextAuth.js (JWT) |
+| UI | Tailwind CSS + shadcn/ui + Radix UI |
+| Storage | MinIO (S3-compatible) |
+| AI | LangChain + DeepSeek/Kimi APIs |
 
-## 七、试用期评价
-- **功能需求**：对入职人员进行试用期评估，结合绩效、行为表现打分参考人工智能评分。
-- **设计细节**：
-    - 设定固定评估周期（如每月一次）。
-    - 综合项目绩效、工作态度等多方面因素评分。
-    - 客观记录试用期工作经历。
-    - 人工与AI评分结合确保评价全面客观。
+### Quick Start
 
-## 八、正式入职后，在职工作维护
-- **功能需求**：员工入职后根据项目、奖惩调整分数。
-- **设计细节**：
-    - 记录员工项目、奖惩情况。
-    - 按规则增减分数。
-    - 定期评估绩效更新人才分确保数据实时准确。
+#### Prerequisites
 
-## 九、动态量化管理
-- **功能需求**：对公司所有人才动态量化管理，分析人才库趋势和人员分布。
-- **设计细节**：
-    - 持续更新人才数据定期分析。
-    - 通过统计和可视化工具展示人才库数据（如分布、技能趋势等）。
-    - 为人力资源管理提供数据支持辅助决策，人才分数随工作年限增长。
+- Node.js 18+
+- PostgreSQL 14+
+- MinIO (for file storage)
 
-## 十、系统其他功能建议
-- **权限管理**：不同用户（招聘人员、主管、HR等）有不同权限确保信息安全保密。
-- **数据分析与报告**：根据人才分数、标签、岗位匹配度等生成定期报告辅助决策。
-- **定期审核人工智能打分准确度**：避免系统性误差。
-- **自动化时间节点提醒**：人才各阶段（申请、面试、试用期、入职）按节点提醒。
+#### Installation
 
-## 已实现功能
+```bash
+# Clone the repository
+git clone https://github.com/your-org/dunwill-herobase.git
+cd dunwill-herobase
 
-### 1. 职位管理系统
-- **职位创建功能**：支持创建职位，包括职位名称、部门、描述、要求等信息，支持选择职位相关标签，集成AI辅助生成职位描述和要求，支持设置职位状态和有效期。
-- **职位列表功能**：展示所有职位，支持按状态筛选，显示职位基本信息、状态、标签和截止日期。
-- **职位详情功能**：展示职位完整信息，支持快速更改职位状态，显示职位标签、描述和要求。
-- **职位编辑功能**：支持修改职位所有信息，保留AI辅助生成功能，支持更新职位标签。
-- **职位匹配功能**：展示与职位匹配的候选人，显示候选人匹配度和相关标签，提供候选人详情查看和邀请功能。
+# Install dependencies
+npm install
 
-### 2. 面试管理系统
-- **面试日历功能**：以日历形式展示所有面试安排，支持按月查看，显示每日面试数量和基本信息。
-- **面试详情查看**：点击日历中的面试可查看详细信息，包括候选人、面试官、面试类型、时间和地点等。
-- **面试状态管理**：支持不同面试状态（已安排、已完成、已取消、已重排）的可视化展示。
-- **面试类型区分**：区分不同类型的面试（电话面试、技术面试、HR面试、主管面试、性格测试）。
+# Configure environment
+cp .env.example .env
+# Edit .env with your database and MinIO credentials
+
+# Initialize database
+npx prisma migrate deploy
+npm run seed
+
+# Start development server
+npm run dev
+```
+
+Visit `http://localhost:4005`
+
+Default admin: `xuhuayong@dunwill.com` / `123456A`
+
+### Docker Deployment
+
+```bash
+# Configure
+cp docker/.env.docker.example docker/.env.docker
+vim docker/.env.docker
+
+# Deploy
+./docker/deploy.sh deploy
+
+# Verify
+./docker/deploy.sh ps
+./docker/deploy.sh logs
+```
+
+See [docker/README.md](docker/README.md) for more options.
+
+### Project Structure
+
+```
+src/
+├── app/
+│   ├── api/          # API routes
+│   ├── candidates/   # Candidate management pages
+│   ├── employees/    # Employee management pages
+│   ├── interviews/   # Interview scheduling pages
+│   ├── job-postings/ # Job posting pages
+│   └── components/   # Shared React components
+├── lib/              # Utilities and hooks
+prisma/
+├── schema.prisma     # Database schema
+└── migrations/       # Database migrations
+```
+
+### License
+
+MIT License
+
+---
+
+## 中文
+
+### 项目简介
+
+**Dunwill HeroBase（公司人才库）** 是一个 AI 驱动的人力资源管理系统，旨在优化从招聘到员工全生命周期的管理流程。
+
+### 核心功能
+
+- **AI 简历解析** - 上传 PDF 简历，自动提取并结构化候选人信息
+- **智能标签** - AI 驱动的技能和行业标签分类
+- **职位管理** - 创建和管理职位，支持 AI 辅助生成职位描述
+- **智能匹配** - AI 驱动的候选人-职位匹配评分
+- **面试管理** - 日历视图的面试安排和跟踪
+- **员工生命周期** - 试用期、绩效考核、奖惩记录管理
+
+### 技术栈
+
+| 类别 | 技术 |
+|------|------|
+| 框架 | Next.js 14 (App Router) |
+| 数据库 | PostgreSQL + Prisma ORM |
+| 认证 | NextAuth.js (JWT) |
+| UI | Tailwind CSS + shadcn/ui + Radix UI |
+| 存储 | MinIO (S3 兼容) |
+| AI | LangChain + DeepSeek/Kimi APIs |
+
+### 快速开始
+
+#### 环境要求
+
+- Node.js 18+
+- PostgreSQL 14+
+- MinIO（文件存储）
+
+#### 安装步骤
+
+```bash
+# 克隆仓库
+git clone https://github.com/your-org/dunwill-herobase.git
+cd dunwill-herobase
+
+# 安装依赖
+npm install
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env，填入数据库和 MinIO 配置
+
+# 初始化数据库
+npx prisma migrate deploy
+npm run seed
+
+# 启动开发服务器
+npm run dev
+```
+
+访问 `http://localhost:4005`
+
+默认管理员：`xuhuayong@dunwill.com` / `123456A`
+
+### Docker 部署
+
+```bash
+# 配置环境变量
+cp docker/.env.docker.example docker/.env.docker
+vim docker/.env.docker
+
+# 一键部署
+./docker/deploy.sh deploy
+
+# 验证服务
+./docker/deploy.sh ps
+./docker/deploy.sh logs
+```
+
+更多选项参见 [docker/README.md](docker/README.md)。
+
+### 项目结构
+
+```
+src/
+├── app/
+│   ├── api/          # API 路由
+│   ├── candidates/   # 候选人管理页面
+│   ├── employees/    # 员工管理页面
+│   ├── interviews/   # 面试安排页面
+│   ├── job-postings/ # 职位发布页面
+│   └── components/   # 共享 React 组件
+├── lib/              # 工具函数和 hooks
+prisma/
+├── schema.prisma     # 数据库模型
+└── migrations/       # 数据库迁移
+```
+
+### 开源协议
+
+MIT License

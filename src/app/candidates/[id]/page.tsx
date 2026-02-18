@@ -20,6 +20,9 @@ import {
   ArrowLeft,
   Sparkles,
   UserPlus,
+  ClipboardList,
+  TrendingUp,
+  TrendingDown,
   Upload,
   Download,
   Eye,
@@ -90,6 +93,20 @@ interface Candidate {
   employeeRecord: {
     id: string;
     employeeId: string;
+    department: string;
+    position: string;
+    status: string;
+    performanceReviews: {
+      id: string;
+      date: string;
+      type: string;
+      score: number;
+      level?: string;
+      summary: string;
+      strengths?: string;
+      improvements?: string;
+      reviewer: string;
+    }[];
   } | null;
 }
 
@@ -171,6 +188,134 @@ const getCategoryColor = (category: string) => {
   };
   return colors[category] || 'bg-gray-100 text-gray-800';
 };
+
+// 业绩考核卡片组件（支持年份/季度筛选）
+function PerformanceReviewCard({
+  reviews,
+  allYears,
+  defaultYear,
+  defaultQuarter,
+  employeeId,
+}: {
+  reviews: Candidate['employeeRecord'] extends infer T ? T extends { performanceReviews: infer R } ? R : never : never;
+  allYears: number[];
+  defaultYear: number;
+  defaultQuarter: number;
+  employeeId: string;
+}) {
+  const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const [selectedQuarter, setSelectedQuarter] = useState(defaultQuarter);
+
+  const quarterMonths: Record<number, number[]> = { 1: [1, 2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 4: [10, 11, 12] };
+
+  const filteredReviews = reviews.filter((r) => {
+    const d = new Date(r.date);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    return year === selectedYear && quarterMonths[selectedQuarter]?.includes(month);
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <ClipboardList className="h-5 w-5" />
+            业绩考核
+          </span>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/employees/${employeeId}/performance`}>
+              查看全部
+            </Link>
+          </Button>
+        </CardTitle>
+        {/* 年份和季度筛选 */}
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <div className="flex items-center gap-1">
+            {allYears.map((year) => (
+              <Button
+                key={year}
+                variant={selectedYear === year ? 'default' : 'outline'}
+                size="sm"
+                className="h-7 text-xs px-2"
+                onClick={() => setSelectedYear(year)}
+              >
+                {year}
+              </Button>
+            ))}
+          </div>
+          <span className="text-muted-foreground text-xs">|</span>
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4].map((q) => (
+              <Button
+                key={q}
+                variant={selectedQuarter === q ? 'default' : 'outline'}
+                size="sm"
+                className="h-7 text-xs px-2"
+                onClick={() => setSelectedQuarter(q)}
+              >
+                Q{q}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {filteredReviews.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            {selectedYear}年第{selectedQuarter}季度暂无考核记录
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {filteredReviews.map((review) => (
+              <div key={review.id} className="p-3 border rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">{review.type}</Badge>
+                    {review.level && (
+                      <Badge className={`text-xs ${
+                        review.level === 'A' ? 'bg-emerald-100 text-emerald-800' :
+                        review.level === 'B' ? 'bg-blue-100 text-blue-800' :
+                        review.level === 'C' ? 'bg-amber-100 text-amber-800' :
+                        review.level === 'D' ? 'bg-orange-100 text-orange-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {review.level}
+                      </Badge>
+                    )}
+                  </div>
+                  <span className={`font-bold ${
+                    review.score >= 90 ? 'text-emerald-600' :
+                    review.score >= 70 ? 'text-amber-600' :
+                    'text-red-600'
+                  }`}>
+                    {review.score}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground line-clamp-2">{review.summary}</p>
+                {review.strengths && (
+                  <div className="flex items-start gap-1 mt-1">
+                    <TrendingUp className="h-3 w-3 text-emerald-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-muted-foreground line-clamp-1">{review.strengths}</p>
+                  </div>
+                )}
+                {review.improvements && (
+                  <div className="flex items-start gap-1 mt-1">
+                    <TrendingDown className="h-3 w-3 text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-muted-foreground line-clamp-1">{review.improvements}</p>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-2">
+                  {new Date(review.date).toLocaleDateString('zh-CN')} · 考核人: {review.reviewer}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function CandidateDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -1070,6 +1215,27 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
               </CardContent>
             </Card>
           )}
+
+          {/* 业绩考核记录 */}
+          {candidate.employeeRecord && candidate.employeeRecord.performanceReviews && candidate.employeeRecord.performanceReviews.length > 0 && (() => {
+            const reviews = candidate.employeeRecord.performanceReviews;
+            // 提取所有年份
+            const allYears = Array.from(new Set(reviews.map(r => new Date(r.date).getFullYear()))).sort((a, b) => b - a);
+            const currentYear = new Date().getFullYear();
+            const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
+            // 默认选中当前年份（如果有数据），否则选最新年份
+            const defaultYear = allYears.includes(currentYear) ? currentYear : allYears[0];
+
+            return (
+              <PerformanceReviewCard
+                reviews={reviews}
+                allYears={allYears}
+                defaultYear={defaultYear}
+                defaultQuarter={currentQuarter}
+                employeeId={candidate.employeeRecord.id}
+              />
+            );
+          })()}
         </div>
       </div>
 

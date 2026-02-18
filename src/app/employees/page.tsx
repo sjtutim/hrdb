@@ -6,26 +6,33 @@ import {
   Users,
   Search,
   Filter,
-  MoreVertical,
   Building,
   Calendar,
   Award,
   AlertCircle,
   UserPlus,
   Download,
-  BarChart3
+  BarChart3,
+  Eye,
+  Pencil,
+  UserMinus,
+  LogOut
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Input } from '@/app/components/ui/input';
 import { Badge } from '@/app/components/ui/badge';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/app/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/app/components/ui/avatar';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/components/ui/dialog';
+import { Label } from '@/app/components/ui/label';
+import { Textarea } from '@/app/components/ui/textarea';
 import TagCloudStats from '@/app/components/tag-cloud-stats';
 
 interface Employee {
@@ -37,6 +44,8 @@ interface Employee {
   probationEndDate: string;
   status: string;
   currentScore: number;
+  resignDate?: string;
+  resignReason?: string;
   candidate: {
     id: string;
     name: string;
@@ -50,7 +59,7 @@ interface Employee {
 
 const statusMap: Record<string, { label: string; className: string }> = {
   PROBATION: { label: '试用期', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
-  REGULAR: { label: '正式员工', className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
+  REGULAR: { label: '正式录用', className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
   RESIGNED: { label: '已离职', className: 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-300' },
   TERMINATED: { label: '已解雇', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
 };
@@ -66,6 +75,12 @@ export default function EmployeesPage() {
   const [tagStats, setTagStats] = useState<any[]>([]);
   const [tagStatsPeople, setTagStatsPeople] = useState(0);
   const [tagStatsLoading, setTagStatsLoading] = useState(false);
+  const [resignDialogOpen, setResignDialogOpen] = useState(false);
+  const [resignTarget, setResignTarget] = useState<Employee | null>(null);
+  const [resignType, setResignType] = useState<'RESIGNED' | 'TERMINATED'>('RESIGNED');
+  const [resignDate, setResignDate] = useState(new Date().toISOString().split('T')[0]);
+  const [resignReason, setResignReason] = useState('');
+  const [resignSubmitting, setResignSubmitting] = useState(false);
 
   // 获取标签统计数据
   const fetchTagStats = async () => {
@@ -124,6 +139,42 @@ export default function EmployeesPage() {
     }
   };
 
+  const openResignDialog = (employee: Employee) => {
+    setResignTarget(employee);
+    setResignType('RESIGNED');
+    setResignDate(new Date().toISOString().split('T')[0]);
+    setResignReason('');
+    setResignDialogOpen(true);
+  };
+
+  const handleResign = async () => {
+    if (!resignTarget) return;
+    setResignSubmitting(true);
+    try {
+      const res = await fetch(`/api/employees/${resignTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: resignType,
+          resignDate: resignDate,
+          resignReason: resignReason,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || '离职处理失败');
+        return;
+      }
+      setResignDialogOpen(false);
+      fetchEmployees();
+    } catch (error) {
+      console.error('离职处理失败:', error);
+      alert('离职处理失败');
+    } finally {
+      setResignSubmitting(false);
+    }
+  };
+
   const getScoreColor = (score: number) => {
     if (score >= 90) return 'text-emerald-600';
     if (score >= 70) return 'text-amber-600';
@@ -131,6 +182,12 @@ export default function EmployeesPage() {
   };
 
   const filteredEmployees = employees.filter(emp => {
+    const isResigned = ['RESIGNED', 'TERMINATED'].includes(emp.status);
+
+    // 默认隐藏离职员工；手动切到“已离职”时显示离职/解雇
+    if (!statusFilter && isResigned) return false;
+    if (statusFilter === 'RESIGNED' && !isResigned) return false;
+
     if (!search) return true;
     const searchLower = search.toLowerCase();
     return (
@@ -140,10 +197,13 @@ export default function EmployeesPage() {
     );
   });
 
+  // 排除离职人员后计算
+  const activeEmployees = employees.filter(e => !['RESIGNED', 'TERMINATED'].includes(e.status));
   const stats = {
-    total: employees.length,
-    probation: employees.filter(e => e.status === 'PROBATION').length,
-    regular: employees.filter(e => e.status === 'REGULAR').length,
+    total: activeEmployees.length,
+    probation: activeEmployees.filter(e => e.status === 'PROBATION').length,
+    regular: activeEmployees.filter(e => e.status === 'REGULAR').length,
+    resigned: employees.filter(e => ['RESIGNED', 'TERMINATED'].includes(e.status)).length,
   };
 
   return (
@@ -180,7 +240,7 @@ export default function EmployeesPage() {
       </div>
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -216,6 +276,22 @@ export default function EmployeesPage() {
               <div>
                 <p className="text-sm text-muted-foreground">正式员工</p>
                 <p className="text-2xl font-bold">{stats.regular}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card
+          className="cursor-pointer hover:border-slate-400 transition-colors"
+          onClick={() => setStatusFilter(statusFilter === 'RESIGNED' ? '' : 'RESIGNED')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-900/30">
+                <LogOut className="h-6 w-6 text-slate-600 dark:text-slate-400" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">已离职</p>
+                <p className="text-2xl font-bold">{stats.resigned}</p>
               </div>
             </div>
           </CardContent>
@@ -261,9 +337,8 @@ export default function EmployeesPage() {
             >
               <option value="">全部状态</option>
               <option value="PROBATION">试用期</option>
-              <option value="REGULAR">正式员工</option>
+              <option value="REGULAR">正式录用</option>
               <option value="RESIGNED">已离职</option>
-              <option value="TERMINATED">已解雇</option>
             </select>
             <select
               className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -333,32 +408,56 @@ export default function EmployeesPage() {
                           {new Date(employee.hireDate).toLocaleDateString('zh-CN')}
                         </span>
                       </div>
+                      {['RESIGNED', 'TERMINATED'].includes(employee.status) && employee.resignDate && (
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                          <span className="flex items-center gap-1">
+                            <LogOut className="h-3 w-3" />
+                            离职日期: {new Date(employee.resignDate).toLocaleDateString('zh-CN')}
+                          </span>
+                          {employee.resignReason && (
+                            <span className="truncate max-w-[200px]" title={employee.resignReason}>
+                              原因: {employee.resignReason}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right hidden sm:block">
+                  <div className="flex items-center gap-2">
+                    <div className="text-right hidden sm:block mr-4">
                       <div className="text-sm text-muted-foreground">评分</div>
                       <div className={`font-bold text-lg ${getScoreColor(employee.currentScore)}`}>
-                        {employee.currentScore}
+                        {Math.round(employee.currentScore)}
                       </div>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <Link href={`/candidates/${employee.candidate.id}`} title="查看详情">
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <Link href={`/candidates/${employee.candidate.id}/edit`} title="编辑信息">
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <Link href={`/employees/${employee.id}/performance`} title="查看绩效">
+                          <BarChart3 className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      {!['RESIGNED', 'TERMINATED'].includes(employee.status) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          title="离职处理"
+                          onClick={() => openResignDialog(employee)}
+                        >
+                          <UserMinus className="h-4 w-4" />
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/candidates/${employee.candidate.id}`}>查看详情</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/candidates/${employee.candidate.id}/edit`}>编辑信息</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>查看绩效</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">离职处理</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -366,6 +465,56 @@ export default function EmployeesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* 离职处理对话框 */}
+      <Dialog open={resignDialogOpen} onOpenChange={setResignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>离职处理</DialogTitle>
+            <DialogDescription>
+              确认对员工 <span className="font-medium text-foreground">{resignTarget?.candidate.name}</span> 进行离职处理，此操作不可撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>离职类型</Label>
+              <select
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={resignType}
+                onChange={(e) => setResignType(e.target.value as 'RESIGNED' | 'TERMINATED')}
+              >
+                <option value="RESIGNED">主动离职</option>
+                <option value="TERMINATED">辞退</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>离职日期</Label>
+              <Input
+                type="date"
+                value={resignDate}
+                onChange={(e) => setResignDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>离职原因</Label>
+              <Textarea
+                placeholder="请输入离职原因..."
+                value={resignReason}
+                onChange={(e) => setResignReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResignDialogOpen(false)} disabled={resignSubmitting}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleResign} disabled={resignSubmitting}>
+              {resignSubmitting ? '处理中...' : '确认离职'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -234,10 +234,13 @@ model Employee {
   hireDate      DateTime
   probationEndDate DateTime
   status        EmployeeStatus @default(PROBATION)
+  resignDate    DateTime?  // 离职日期
+  resignReason  String?    // 离职原因
   currentScore  Float      // 当前评分
   projects      Project[]  // 参与的项目
   rewards       Reward[]   // 奖励记录
   penalties     Penalty[]  // 惩罚记录
+  performanceReviews PerformanceReview[] // 业绩考核记录
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 }
@@ -293,6 +296,25 @@ model Penalty {
   date          DateTime
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+}
+
+// 业绩考核模型
+model PerformanceReview {
+  id           String   @id @default(uuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  date         DateTime               // 考核日期
+  type         String                 // 考核类型：月度考核、季度考核、年度考核、试用期考核
+  score        Float                  // 考核评分
+  level        String?                // 考核等级：A/B/C/D/E
+  summary      String   @db.Text     // 考核总结
+  strengths    String?  @db.Text     // 优势/亮点
+  improvements String?  @db.Text     // 待改进项
+  reviewer     String                 // 考核人
+  attachmentUrl String?               // 附件存储路径 (MinIO objectName)
+  attachmentName String?              // 附件原始文件名
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // 计划匹配任务模型

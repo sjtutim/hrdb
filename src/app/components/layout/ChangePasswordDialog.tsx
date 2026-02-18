@@ -9,11 +9,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
 } from "@/app/components/ui/dialog"
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
 import { Label } from "@/app/components/ui/label"
+import { DropdownMenuItem } from "@/app/components/ui/dropdown-menu"
 import { Key, Loader2 } from "lucide-react"
 
 export function ChangePasswordDialog() {
@@ -76,80 +76,84 @@ export function ChangePasswordDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" className="w-full justify-start">
-          <Key className="mr-2 h-4 w-4" />
-          修改密码
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>修改密码</DialogTitle>
-          <DialogDescription>
-            请输入您的当前密码和新密码
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            {error && (
-              <div className="p-3 text-sm text-red-500 bg-red-50 border border-red-200 rounded-md">
-                {error}
+    <>
+      <DropdownMenuItem 
+        onClick={() => setOpen(true)}
+        className="cursor-pointer"
+      >
+        <Key className="mr-2 h-4 w-4" />
+        修改密码
+      </DropdownMenuItem>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>修改密码</DialogTitle>
+            <DialogDescription>
+              请输入您的当前密码和新密码
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              {error && (
+                <div className="p-3 text-sm text-red-500 bg-red-50 border border-red-200 rounded-md">
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-md">
+                  密码修改成功！
+                </div>
+              )}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="currentPassword" className="text-right">
+                  当前密码
+                </Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="col-span-3"
+                  required
+                />
               </div>
-            )}
-            {success && (
-              <div className="p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-md">
-                密码修改成功！
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="newPassword" className="text-right">
+                  新密码
+                </Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="col-span-3"
+                  required
+                />
               </div>
-            )}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="currentPassword" className="text-right">
-                当前密码
-              </Label>
-              <Input
-                id="currentPassword"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="col-span-3"
-                required
-              />
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="confirmPassword" className="text-right">
+                  确认密码
+                </Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="col-span-3"
+                  required
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="newPassword" className="text-right">
-                新密码
-              </Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="col-span-3"
-                required
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="confirmPassword" className="text-right">
-                确认密码
-              </Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="col-span-3"
-                required
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              保存修改
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <DialogFooter>
+              <Button type="submit" disabled={loading}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                保存修改
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

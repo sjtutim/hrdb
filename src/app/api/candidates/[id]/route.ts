@@ -22,6 +22,12 @@ export async function GET(
           select: {
             id: true,
             employeeId: true,
+            department: true,
+            position: true,
+            status: true,
+            performanceReviews: {
+              orderBy: { date: 'desc' },
+            },
           },
         },
         recruiter: {

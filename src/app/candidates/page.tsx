@@ -13,21 +13,17 @@ import {
   ArrowUpDown,
   Download,
   User,
-  BarChart3
+  BarChart3,
+  Eye,
+  Pencil,
+  Calendar,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import TagCloudStats from '@/app/components/tag-cloud-stats';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/app/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
@@ -155,38 +151,34 @@ function CandidateRow({ candidate, onDelete }: { candidate: Candidate; onDelete:
         </span>
       </td>
       <td className="px-4 py-4 text-right">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4" />
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+            <Link href={`/candidates/${candidate.id}`} title="查看详情">
+              <Eye className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+            <Link href={`/candidates/${candidate.id}/edit`} title="编辑">
+              <Pencil className="h-4 w-4" />
+            </Link>
+          </Button>
+          {!['ONBOARDING', 'PROBATION', 'EMPLOYED'].includes(candidate.status) && (
+            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+              <Link href={`/interviews/create?candidateId=${candidate.id}`} title="安排面试">
+                <Calendar className="h-4 w-4" />
+              </Link>
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>操作</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href={`/candidates/${candidate.id}`}>查看详情</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={`/candidates/${candidate.id}/edit`}>编辑</Link>
-            </DropdownMenuItem>
-            {!['ONBOARDING', 'PROBATION', 'EMPLOYED'].includes(candidate.status) && (
-              <DropdownMenuItem asChild>
-                <Link href={`/interviews/create?candidateId=${candidate.id}`}>安排面试</Link>
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive"
-              onSelect={(e) => {
-                e.preventDefault();
-                onDelete(candidate.id, candidate.name);
-              }}
-            >
-              删除
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive"
+            title="删除"
+            onClick={() => onDelete(candidate.id, candidate.name)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </td>
     </tr>
   );
@@ -248,8 +240,11 @@ export default function CandidatesPage() {
           throw new Error('获取候选人列表失败');
         }
         const data = await response.json();
+        const visibleCandidates = (data as Candidate[]).filter(
+          (c) => !['PROBATION', 'EMPLOYED'].includes(c.status)
+        );
         // 添加模拟的最后更新时间
-        const dataWithDate = data.map((c: Candidate) => ({
+        const dataWithDate = visibleCandidates.map((c: Candidate) => ({
           ...c,
           lastUpdated: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
         }));

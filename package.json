@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 4005",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 4005",
     "lint": "next lint",
     "postinstall": "prisma generate",
     "seed": "node --loader ts-node/esm scripts/seed.ts"

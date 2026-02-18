@@ -8,6 +8,7 @@ const candidateStatusToEmployeeStatus: Record<string, string> = {
   ONBOARDING: 'PROBATION',
   PROBATION: 'PROBATION',
   EMPLOYED: 'REGULAR',
+  ARCHIVED: 'RESIGNED',
 };
 
 export async function GET(request: Request) {
@@ -20,7 +21,8 @@ export async function GET(request: Request) {
     const where: any = {};
 
     if (status) {
-      where.status = status;
+      // 前端把“已离职”统一传为 RESIGNED，这里包含已解雇
+      where.status = status === 'RESIGNED' ? { in: ['RESIGNED', 'TERMINATED'] } : status;
     }
 
     if (department) {
@@ -48,7 +50,13 @@ export async function GET(request: Request) {
             education: true,
             currentPosition: true,
             currentCompany: true,
+            totalScore: true,
+            initialScore: true,
           },
+        },
+        performanceReviews: {
+          orderBy: { date: 'desc' },
+          take: 1,
         },
       },
       orderBy: {
@@ -56,10 +64,25 @@ export async function GET(request: Request) {
       },
     });
 
+    // 动态计算当前评分
+    const employeesWithCalculatedScore = employees.map(emp => {
+      const candidateScore = emp.candidate.totalScore ?? emp.candidate.initialScore ?? 0;
+      let calculatedScore = emp.currentScore;
+      if (emp.performanceReviews.length > 0) {
+        calculatedScore = emp.performanceReviews[0].score;
+      } else if (calculatedScore === 0 && candidateScore > 0) {
+        calculatedScore = candidateScore;
+      }
+      return {
+        ...emp,
+        currentScore: calculatedScore,
+      };
+    });
+
     // 查询状态为已入职/试用期但没有 Employee 记录的候选人
     const employeeCandidateIds = employees.map(e => e.candidateId);
     const candidateWhere: any = {
-      status: { in: ['ONBOARDING', 'PROBATION', 'EMPLOYED'] },
+      status: { in: ['ONBOARDING', 'PROBATION', 'EMPLOYED', 'ARCHIVED'] },
       employeeRecord: { is: null },
     };
     if (employeeCandidateIds.length > 0) {
@@ -84,6 +107,7 @@ export async function GET(request: Request) {
         currentCompany: true,
         status: true,
         totalScore: true,
+        initialScore: true,
         createdAt: true,
       },
     });
@@ -104,7 +128,7 @@ export async function GET(request: Request) {
         hireDate: c.createdAt,
         probationEndDate: c.createdAt,
         status: candidateStatusToEmployeeStatus[c.status] || 'PROBATION',
-        currentScore: c.totalScore ?? 0,
+        currentScore: c.totalScore ?? c.initialScore ?? 0,
         createdAt: c.createdAt,
         updatedAt: c.createdAt,
         candidate: {
@@ -118,7 +142,7 @@ export async function GET(request: Request) {
         },
       }));
 
-    const allEmployees = [...employees, ...virtualEmployees];
+    const allEmployees = [...employeesWithCalculatedScore, ...virtualEmployees];
 
     // 获取部门列表
     const departments = await prisma.employee.findMany({
