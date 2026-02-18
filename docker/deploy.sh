@@ -74,9 +74,18 @@ start_stack() {
   compose up -d app
 }
 
+export_baseline() {
+  local env_file="${2:-.env}"
+  echo "[INFO] 导出当前数据库为首次部署基线..."
+  bash "$(dirname "$DOCKER_DIR")/scripts/export-baseline.sh" "$env_file"
+}
+
 cmd="${1:-help}"
 
 case "$cmd" in
+  export-baseline)
+    export_baseline "$@"
+    ;;
   build)
     build_images
     ;;
@@ -127,18 +136,20 @@ case "$cmd" in
 Usage: $0 <command>
 
 Commands:
-  build         Build app + migrate images (uses Docker layer cache)
-  up            Reuse local images when available, then start postgres -> migrate -> app
-  deploy        Always build latest images, then start postgres -> migrate -> app
-  deploy-reuse  Try reusing local images; build only if image is missing
-  migrate       Start postgres and run migration once
-  ps            Show services status
-  logs          Follow app/postgres logs
-  restart       Restart app service
-  down          Stop and remove services (keep DB volume)
-  down-v        Stop and remove services + DB volume
-  images        Show reusable local images
-  config        Render merged compose config
+  export-baseline [ENV]  从当前数据库导出基线 SQL（含数据）到 docker/init/01-baseline.sql
+                         ENV 默认为 .env，首次部署前在开发机上运行
+  build                  Build app + migrate images (uses Docker layer cache)
+  up                     Reuse local images when available, then start postgres -> migrate -> app
+  deploy                 Always build latest images, then start postgres -> migrate -> app
+  deploy-reuse           Try reusing local images; build only if image is missing
+  migrate                Start postgres and run migration once
+  ps                     Show services status
+  logs                   Follow app/postgres logs
+  restart                Restart app service
+  down                   Stop and remove services (keep DB volume)
+  down-v                 Stop and remove services + DB volume
+  images                 Show reusable local images
+  config                 Render merged compose config
 USAGE
     ;;
 esac
