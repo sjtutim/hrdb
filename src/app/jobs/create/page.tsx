@@ -253,15 +253,15 @@ export default function CreateJobPage() {
   const handleGenerateAiSuggestions = async () => {
     const title = form.getValues('title');
     const department = form.getValues('department');
-    
+
     if (!title || !department) {
       setError('请先填写职位名称和部门');
       return;
     }
-    
+
     setAiGenerating(true);
     setError(null);
-    
+
     try {
       const response = await fetch('/api/ai/job-suggestions', {
         method: 'POST',
@@ -272,12 +272,48 @@ export default function CreateJobPage() {
           selectedTags: selectedTags.map(id => availableTags.find(tag => tag.id === id)?.name).filter(Boolean),
         }),
       });
-      
+
       if (!response.ok) throw new Error('生成AI建议失败');
-      
-      const data = await response.json();
-      setAiSuggestions(data);
-      setShowAiSuggestions(true);
+
+      // 任务已入队，通知队列面板刷新
+      window.dispatchEvent(new Event('queue:updated'));
+
+      // 消费 SSE 流获取进度和结果
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      outer: while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+
+        for (const part of parts) {
+          if (!part.trim()) continue;
+          let eventType = 'message';
+          let data = '';
+          for (const line of part.split('\n')) {
+            if (line.startsWith('event: ')) eventType = line.slice(7);
+            else if (line.startsWith('data: ')) data = line.slice(6);
+          }
+          if (!data) continue;
+          let parsed;
+          try { parsed = JSON.parse(data); } catch { continue; }
+
+          if (eventType === 'done') {
+            setAiSuggestions({ description: parsed.description, requirements: parsed.requirements });
+            setShowAiSuggestions(true);
+            window.dispatchEvent(new Event('queue:updated'));
+            break outer;
+          } else if (eventType === 'error') {
+            window.dispatchEvent(new Event('queue:updated'));
+            throw new Error(parsed.error);
+          }
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '生成AI建议失败');
     } finally {

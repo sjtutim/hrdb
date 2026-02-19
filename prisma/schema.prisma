@@ -364,6 +364,27 @@ enum ScheduledParseStatus {
   FAILED
 }
 
+// AI 生成任务模型（职位描述/要求生成，支持失败重试）
+model AiGenTask {
+  id           String      @id @default(uuid())
+  title        String      // 职位名称
+  department   String      // 部门
+  tags         String[]    // 标签列表
+  status       AiGenStatus @default(PENDING)
+  description  String?     @db.Text  // 生成的岗位描述
+  requirements String?     @db.Text  // 生成的岗位要求
+  error        String?     @db.Text  // 失败时的错误信息
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+enum AiGenStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 // 角色菜单权限模型
 model RolePermission {
   id       String @id @default(uuid())

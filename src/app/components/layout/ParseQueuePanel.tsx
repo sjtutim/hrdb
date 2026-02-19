@@ -12,6 +12,7 @@ import {
   FileText,
   Sparkles,
   X,
+  RefreshCw,
 } from 'lucide-react';
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
@@ -39,7 +40,16 @@ interface MatchTask {
   jobPosting: { title: string; department: string };
 }
 
-type Tab = 'parse' | 'match';
+interface AiGenTask {
+  id: string;
+  title: string;
+  department: string;
+  status: 'PENDING' | 'RUNNING' | 'FAILED';
+  error: string | null;
+  createdAt: string;
+}
+
+type Tab = 'parse' | 'match' | 'aigen';
 
 const POLL_INTERVAL = 30_000;
 
@@ -50,20 +60,23 @@ const POLL_INTERVAL = 30_000;
 export function QueuePanel() {
   const [parseTasks, setParseTasks] = useState<ParseTask[]>([]);
   const [matchTasks, setMatchTasks] = useState<MatchTask[]>([]);
+  const [aiGenTasks, setAiGenTasks] = useState<AiGenTask[]>([]);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('parse');
   const [loading, setLoading] = useState(false);
   const [parseAction, setParseAction] = useState<Record<string, 'run' | 'delete' | null>>({});
   const [matchAction, setMatchAction] = useState<Record<string, 'run' | 'cancel' | null>>({});
+  const [aiGenAction, setAiGenAction] = useState<Record<string, 'retry' | 'delete' | null>>({});;
 
   // ── 数据获取 ──────────────────────────────────
 
   const fetchQueue = useCallback(async () => {
     setLoading(true);
     try {
-      const [parseRes, matchRes] = await Promise.all([
+      const [parseRes, matchRes, aiGenRes] = await Promise.all([
         fetch('/api/resume/parse-queue'),
         fetch('/api/scheduled-matches?status=PENDING&status=RUNNING'),
+        fetch('/api/ai/gen-tasks'),
       ]);
       if (parseRes.ok) {
         const d = await parseRes.json();
@@ -72,6 +85,10 @@ export function QueuePanel() {
       if (matchRes.ok) {
         const d: MatchTask[] = await matchRes.json();
         setMatchTasks(d.filter((t) => ['PENDING', 'RUNNING', 'FAILED'].includes(t.status)));
+      }
+      if (aiGenRes.ok) {
+        const d = await aiGenRes.json();
+        setAiGenTasks(d.tasks ?? []);
       }
     } catch {
       // 静默失败
@@ -119,6 +136,45 @@ export function QueuePanel() {
     }
   }, []);
 
+  // ── AI 生成队列操作 ────────────────────────────
+
+  const handleAiGenRetry = useCallback(
+    async (id: string) => {
+      setAiGenAction((p) => ({ ...p, [id]: 'retry' }));
+      try {
+        const res = await fetch(`/api/ai/gen-tasks/${id}`, { method: 'POST' });
+        if (res.ok) {
+          // SSE 流：读完后刷新列表
+          const reader = res.body?.getReader();
+          if (reader) {
+            while (true) {
+              const { done } = await reader.read();
+              if (done) break;
+            }
+          }
+          await fetchQueue();
+        }
+      } catch {
+        /* silent */
+      } finally {
+        setAiGenAction((p) => ({ ...p, [id]: null }));
+      }
+    },
+    [fetchQueue]
+  );
+
+  const handleAiGenDelete = useCallback(async (id: string) => {
+    setAiGenAction((p) => ({ ...p, [id]: 'delete' }));
+    try {
+      const res = await fetch(`/api/ai/gen-tasks/${id}`, { method: 'DELETE' });
+      if (res.ok) setAiGenTasks((prev) => prev.filter((t) => t.id !== id));
+    } catch {
+      /* silent */
+    } finally {
+      setAiGenAction((p) => ({ ...p, [id]: null }));
+    }
+  }, []);
+
   // ── 匹配队列操作 ──────────────────────────────
 
   const handleMatchRun = useCallback(
@@ -150,12 +206,13 @@ export function QueuePanel() {
 
   // ── 统计 ─────────────────────────────────────
 
-  const totalCount = parseTasks.length + matchTasks.length;
+  const totalCount = parseTasks.length + matchTasks.length + aiGenTasks.length;
   if (totalCount === 0) return null;
 
   const parseRunning = parseTasks.filter((t) => t.status === 'RUNNING').length;
   const matchRunning = matchTasks.filter((t) => t.status === 'RUNNING').length;
-  const anyRunning = parseRunning + matchRunning > 0;
+  const aiGenRunning = aiGenTasks.filter((t) => t.status === 'RUNNING').length;
+  const anyRunning = parseRunning + matchRunning + aiGenRunning > 0;
 
   // ── 工具函数 ──────────────────────────────────
 
@@ -233,6 +290,14 @@ export function QueuePanel() {
               label="智能匹配"
               count={matchTasks.length}
               runningCount={matchRunning}
+            />
+            <TabButton
+              active={tab === 'aigen'}
+              onClick={() => setTab('aigen')}
+              icon={<RefreshCw className="h-3.5 w-3.5" />}
+              label="AI生成"
+              count={aiGenTasks.length}
+              runningCount={aiGenRunning}
             />
           </div>
 
@@ -395,6 +460,91 @@ export function QueuePanel() {
                 })}
               </>
             )}
+
+            {tab === 'aigen' && (
+              <>
+                {aiGenTasks.length === 0 && <EmptyState />}
+                {aiGenTasks.map((task) => {
+                  const acting = !!aiGenAction[task.id];
+                  return (
+                    <div
+                      key={task.id}
+                      className={cn(
+                        'flex items-start gap-3 px-4 py-3 text-sm transition-colors',
+                        task.status === 'RUNNING' && 'bg-blue-50/50 dark:bg-blue-950/10',
+                        task.status === 'FAILED' && 'bg-red-50/50 dark:bg-red-950/10'
+                      )}
+                    >
+                      <div className="shrink-0 mt-0.5">
+                        {task.status === 'RUNNING' ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                        ) : task.status === 'FAILED' ? (
+                          <X className="h-4 w-4 text-red-500" />
+                        ) : (
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate text-foreground">{task.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {task.department}
+                        </p>
+                        {task.status === 'RUNNING' && (
+                          <p className="text-xs text-blue-500 mt-0.5">AI 正在生成中...</p>
+                        )}
+                        {task.status === 'FAILED' && (
+                          <p className="text-[10px] text-red-500 mt-1 truncate">
+                            失败: {task.error || '未知错误'}
+                          </p>
+                        )}
+                        {task.status === 'PENDING' && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            创建于 {fmtTime(task.createdAt)}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-1 mt-0.5">
+                        {task.status === 'FAILED' && (
+                          <>
+                            <ActionButton
+                              icon={<RefreshCw className="h-3.5 w-3.5" />}
+                              loading={aiGenAction[task.id] === 'retry'}
+                              disabled={acting}
+                              title="重试"
+                              onClick={() => handleAiGenRetry(task.id)}
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                            />
+                            <ActionButton
+                              icon={<Trash2 className="h-3.5 w-3.5" />}
+                              loading={aiGenAction[task.id] === 'delete'}
+                              disabled={acting}
+                              title="删除任务"
+                              onClick={() => handleAiGenDelete(task.id)}
+                              className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            />
+                          </>
+                        )}
+                        {task.status === 'RUNNING' && (
+                          <Badge className="text-[10px] px-1.5 py-0 bg-blue-500">生成中</Badge>
+                        )}
+                        {task.status === 'PENDING' && (
+                          <ActionButton
+                            icon={<Trash2 className="h-3.5 w-3.5" />}
+                            loading={aiGenAction[task.id] === 'delete'}
+                            disabled={acting}
+                            title="删除任务"
+                            onClick={() => handleAiGenDelete(task.id)}
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
 
           {/* 底部提示 */}
@@ -402,7 +552,9 @@ export function QueuePanel() {
             <p className="text-xs text-muted-foreground text-center">
               {tab === 'parse'
                 ? '解析中任务离开页面后仍将继续'
-                : '凌晨 2:00 自动匹配'}{' '}
+                : tab === 'match'
+                ? '凌晨 2:00 自动匹配'
+                : '失败任务可重试，生成完成后可在职位页面查看'}{' '}
               · 每 30 秒刷新
             </p>
           </div>
