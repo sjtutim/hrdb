@@ -319,6 +319,8 @@ export default function InterviewCalendarPage() {
               events={interviews}
               startAccessor="start"
               endAccessor="end"
+              min={new Date(1970, 1, 1, 6, 0, 0)}
+              max={new Date(1970, 1, 1, 23, 59, 59)}
               style={{ height: '100%' }}
               views={{
                 week: true,

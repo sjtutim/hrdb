@@ -224,12 +224,10 @@ export async function extractResumeData(
         continue;
       }
 
-      // 去除 <think> 标签和 markdown 代码块包裹
-      const jsonStr = content
-        .replace(/<think>[\s\S]*?<\/think>/gi, '')
-        .replace(/^```(?:json)?\s*\n?/i, '')
-        .replace(/\n?```\s*$/i, '')
-        .trim();
+      // 去除 <think> 标签，然后提取 JSON（优先从 ```json...``` 代码块中提取）
+      const stripped = content.replace(/<think>[\s\S]*?<\/think>/gi, '');
+      const codeBlockMatch = stripped.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+      const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : stripped.trim();
 
       const parsed = JSON.parse(jsonStr);
       const raw: RawExtraction = ResumeExtractionSchema.parse(parsed);
