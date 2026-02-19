@@ -41,7 +41,7 @@ export default function SignIn() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="max-w-md w-full p-8 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center mb-6">登录顿慧人才库</h1>
+        <h1 className="text-2xl font-bold text-center mb-6">登录公司人才库</h1>
 
         {error && (
           <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">

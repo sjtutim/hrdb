@@ -100,7 +100,7 @@ export default function LoginPage() {
               <Users className="h-7 w-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">顿慧人才库</h1>
+              <h1 className="text-2xl font-bold text-white">公司人才库</h1>
               <p className="text-white/70 text-sm">AI驱动的人才管理平台</p>
             </div>
           </div>
@@ -139,7 +139,7 @@ export default function LoginPage() {
             <div className="inline-flex items-center justify-center h-16 w-16 rounded-xl bg-primary mb-4">
               <Users className="h-8 w-8 text-primary-foreground" />
             </div>
-            <h1 className="text-2xl font-bold">顿慧人才库</h1>
+            <h1 className="text-2xl font-bold">公司人才库</h1>
             <p className="text-muted-foreground">AI驱动的人才管理平台</p>
           </div>
 

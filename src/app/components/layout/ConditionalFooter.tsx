@@ -32,7 +32,7 @@ export default function ConditionalFooter() {
               <Users className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-sm font-medium">顿慧人才库</p>
+              <p className="text-sm font-medium">公司人才库</p>
               <p className="text-xs text-muted-foreground">
                 &copy; {new Date().getFullYear()} 保留所有权利
               </p>
