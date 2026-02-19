@@ -37,6 +37,8 @@ MIGRATE_IMAGE="${MIGRATE_IMAGE:-hrdb/migrate:local}"
 
 build_images() {
   echo "[INFO] Building images with cache (incremental)..."
+  # 切换到 default builder（docker driver），复用主机 daemon 镜像缓存，无需 BuildKit 容器联网
+  docker buildx use default 2>/dev/null || true
   compose build app migrate
 }
 
