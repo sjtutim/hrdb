@@ -17,13 +17,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run lint         # Run ESLint
-npm run seed         # Seed database with admin user (xuhuayong@Inno.com / 123456A)
-npx prisma generate  # Regenerate Prisma client after schema changes
-npx prisma migrate dev --name <name>  # Create new migration
-npx prisma studio    # Open Prisma database GUI
+pnpm dev             # Start development server
+pnpm build           # Build for production
+pnpm lint            # Run ESLint
+pnpm seed            # Seed database with admin user (xuhuayong@Inno.com / 123456A)
+pnpm prisma generate  # Regenerate Prisma client after schema changes
+pnpm prisma migrate dev --name <name>  # Create new migration
+pnpm prisma studio    # Open Prisma database GUI
 ```
 
 ## Architecture

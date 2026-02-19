@@ -4,16 +4,17 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 FROM base AS deps
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml .npmrc ./
 COPY prisma ./prisma
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN pnpm build
 
 FROM base AS runner
 ENV NODE_ENV=production
@@ -33,7 +34,7 @@ CMD ["node", "server.js"]
 FROM base AS migrator
 ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml .npmrc ./
 COPY prisma ./prisma
 COPY scripts ./scripts
 CMD ["npx", "prisma", "migrate", "deploy"]
