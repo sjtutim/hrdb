@@ -4,5 +4,7 @@ export async function register() {
     initScheduler();
     const { initParseScheduler } = await import('./lib/parse-scheduler');
     initParseScheduler();
+    const { initAiGenScheduler } = await import('./lib/ai-gen-scheduler');
+    initAiGenScheduler();
   }
 }

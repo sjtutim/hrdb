@@ -124,19 +124,6 @@ export async function PUT(
       );
     }
 
-    // 如果更新邮箱，检查唯一性
-    if (data.email && data.email !== existingCandidate.email) {
-      const emailExists = await prisma.candidate.findUnique({
-        where: { email: data.email },
-      });
-      if (emailExists) {
-        return NextResponse.json(
-          { error: '该邮箱已存在' },
-          { status: 400 }
-        );
-      }
-    }
-
     const updatedCandidate = await prisma.candidate.update({
       where: {
         id: candidateId,

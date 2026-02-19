@@ -175,6 +175,20 @@ export function initScheduler(): void {
   );
   globalForScheduler._matchSchedulerInitialized = true;
 
+  // 启动时：重置因进程崩溃卡在 RUNNING 状态超过4小时的任务
+  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  prisma.scheduledMatch
+    .updateMany({
+      where: { status: 'RUNNING', updatedAt: { lte: fourHoursAgo } },
+      data: { status: 'PENDING' },
+    })
+    .then((r) => {
+      if (r.count > 0) {
+        console.log(`[计划匹配] 重置了 ${r.count} 个因崩溃卡住的 RUNNING 任务`);
+      }
+    })
+    .catch((err) => console.error('[计划匹配] 重置卡住任务出错:', err));
+
   // 启动时立即检查一次
   checkAndRunScheduledMatches();
 }

@@ -34,10 +34,17 @@ export async function POST(request: NextRequest) {
 
         // 3. 保存候选人记录
         send('progress', { progress: 80, text: '正在创建候选人档案...' });
+        const candidateName = resumeData.name || '未知姓名';
+        const candidateResumeFileName = `文本解析-${Date.now()}`;
         const candidate = await prisma.candidate.upsert({
-          where: { email: resumeData.email },
+          where: {
+            name_resumeFileName: {
+              name: candidateName,
+              resumeFileName: candidateResumeFileName,
+            },
+          },
           update: {
-            name: resumeData.name,
+            name: candidateName,
             phone: resumeData.phone,
             education: resumeData.education,
             workExperience: resumeData.workExperience,
@@ -47,15 +54,17 @@ export async function POST(request: NextRequest) {
             initialScore: resumeData.initialScore,
             totalScore: resumeData.initialScore,
             aiEvaluation: resumeData.aiEvaluation,
+            email: resumeData.email || null,
           },
           create: {
-            name: resumeData.name || '未知姓名',
-            email: resumeData.email || 'unknown@example.com',
+            name: candidateName,
+            email: resumeData.email || null,
             phone: resumeData.phone,
             education: resumeData.education,
             workExperience: resumeData.workExperience,
             currentPosition: resumeData.currentPosition,
             currentCompany: resumeData.currentCompany,
+            resumeFileName: candidateResumeFileName,
             resumeContent: cleanedContent,
             initialScore: resumeData.initialScore,
             totalScore: resumeData.initialScore,

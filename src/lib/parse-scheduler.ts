@@ -87,6 +87,20 @@ export function initParseScheduler(): void {
   );
   globalForScheduler._parseSchedulerInitialized = true;
 
+  // 启动时：重置因进程崩溃卡在 RUNNING 状态超过1小时的任务
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  prisma.scheduledParse
+    .updateMany({
+      where: { status: 'RUNNING', updatedAt: { lte: oneHourAgo } },
+      data: { status: 'PENDING' },
+    })
+    .then((r) => {
+      if (r.count > 0) {
+        console.log(`[延时解析] 重置了 ${r.count} 个因崩溃卡住的 RUNNING 任务`);
+      }
+    })
+    .catch((err) => console.error('[延时解析] 重置卡住任务出错:', err));
+
   // 启动时立即检查一次
   checkAndRunScheduledParses();
 }

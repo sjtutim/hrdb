@@ -72,20 +72,23 @@ export async function parseResumeFromStorage(params: {
     initialScore: resumeData.initialScore,
     totalScore: resumeData.initialScore,
     aiEvaluation: resumeData.aiEvaluation,
+    email: resumeData.email || null,
   };
 
-  // 有真实邮箱：upsert 以支持同一人重复上传时更新已有档案
-  // 无邮箱：始终新建，用 fileId 生成唯一占位邮箱，避免不同候选人互相覆盖
-  const hasRealEmail = !!resumeData.email;
-  const candidate = hasRealEmail
-    ? await prisma.candidate.upsert({
-        where: { email: resumeData.email },
-        update: candidateFields,
-        create: { ...candidateFields, email: resumeData.email, status: 'NEW' },
-      })
-    : await prisma.candidate.create({
-        data: { ...candidateFields, email: `noemail-${fileId}@noemail.local`, status: 'NEW' },
-      });
+  // 使用姓名+文件名作为唯一标识进行 upsert
+  // 如果有真实邮箱也会一并保存
+  const candidateName = resumeData.name || '未知姓名';
+  const candidateResumeFileName = originalName || `未命名-${fileId}`;
+  const candidate = await prisma.candidate.upsert({
+    where: {
+      name_resumeFileName: {
+        name: candidateName,
+        resumeFileName: candidateResumeFileName,
+      },
+    },
+    update: candidateFields,
+    create: { ...candidateFields, name: candidateName, resumeFileName: candidateResumeFileName, status: 'NEW' },
+  });
 
   // 6. 创建标签
   if (resumeData.tags && resumeData.tags.length > 0) {
