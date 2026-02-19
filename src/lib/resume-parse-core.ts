@@ -1,9 +1,9 @@
 // 简历解析核心逻辑 - 从 MinIO 下载文件 → 解析 → AI提取 → 创建候选人
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { minioClient, BUCKET_NAME } from '@/lib/minio';
 import { parseResumeFile } from '@/lib/resume-parser';
-import { extractResumeData, cleanResumeText } from '@/lib/llm';
+import { extractResumeData, cleanResumeText, ResumeValidationError } from '@/lib/llm';
 
 const prisma = new PrismaClient();
 
@@ -43,54 +43,73 @@ export async function parseResumeFromStorage(params: {
   report(40, 'AI 正在分析简历，清理并提取结构化信息...');
   const resumeData = await extractResumeData(cleanedContent);
 
-  // 4. 保存候选人记录
+  // 4. 重复入库检查：姓名 + 文件名均匹配视为同一份简历
+  if (resumeData.name && originalName) {
+    const duplicate = await prisma.candidate.findFirst({
+      where: { name: resumeData.name, resumeFileName: originalName },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new ResumeValidationError(
+        `候选人「${resumeData.name}」的简历（${originalName}）已入库，请勿重复上传`
+      );
+    }
+  }
+
+  // 5. 保存候选人记录
   report(80, '正在创建候选人档案...');
   const resumeFileUrl = fileUrl || minioObjectName;
-  const candidate = await prisma.candidate.upsert({
-    where: { email: resumeData.email },
-    update: {
-      name: resumeData.name,
-      phone: resumeData.phone,
-      education: resumeData.education,
-      workExperience: resumeData.workExperience,
-      currentPosition: resumeData.currentPosition,
-      currentCompany: resumeData.currentCompany,
-      resumeUrl: resumeFileUrl,
-      resumeFileName: originalName || undefined,
-      resumeContent: cleanedContent,
-      initialScore: resumeData.initialScore,
-      totalScore: resumeData.initialScore,
-      aiEvaluation: resumeData.aiEvaluation,
-    },
-    create: {
-      name: resumeData.name || '未知姓名',
-      email: resumeData.email || 'unknown@example.com',
-      phone: resumeData.phone,
-      education: resumeData.education,
-      workExperience: resumeData.workExperience,
-      currentPosition: resumeData.currentPosition,
-      currentCompany: resumeData.currentCompany,
-      resumeUrl: resumeFileUrl,
-      resumeFileName: originalName || undefined,
-      resumeContent: cleanedContent,
-      initialScore: resumeData.initialScore,
-      totalScore: resumeData.initialScore,
-      aiEvaluation: resumeData.aiEvaluation,
-      status: 'NEW',
-    },
-  });
+  const candidateFields = {
+    name: resumeData.name || '未知姓名',
+    phone: resumeData.phone,
+    education: resumeData.education,
+    workExperience: resumeData.workExperience,
+    currentPosition: resumeData.currentPosition,
+    currentCompany: resumeData.currentCompany,
+    resumeUrl: resumeFileUrl,
+    resumeFileName: originalName || undefined,
+    resumeContent: cleanedContent,
+    initialScore: resumeData.initialScore,
+    totalScore: resumeData.initialScore,
+    aiEvaluation: resumeData.aiEvaluation,
+  };
 
-  // 5. 创建标签
+  // 有真实邮箱：upsert 以支持同一人重复上传时更新已有档案
+  // 无邮箱：始终新建，用 fileId 生成唯一占位邮箱，避免不同候选人互相覆盖
+  const hasRealEmail = !!resumeData.email;
+  const candidate = hasRealEmail
+    ? await prisma.candidate.upsert({
+        where: { email: resumeData.email },
+        update: candidateFields,
+        create: { ...candidateFields, email: resumeData.email, status: 'NEW' },
+      })
+    : await prisma.candidate.create({
+        data: { ...candidateFields, email: `noemail-${fileId}@noemail.local`, status: 'NEW' },
+      });
+
+  // 6. 创建标签
   if (resumeData.tags && resumeData.tags.length > 0) {
     report(90, `正在生成 ${resumeData.tags.length} 个人才标签...`);
     const tagIds: string[] = [];
     for (const t of resumeData.tags) {
-      const tag = await prisma.tag.upsert({
-        where: { name_category: { name: t.name, category: t.category } },
-        update: {},
-        create: { name: t.name, category: t.category },
-      });
-      tagIds.push(tag.id);
+      try {
+        const tag = await prisma.tag.upsert({
+          where: { name_category: { name: t.name, category: t.category } },
+          update: {},
+          create: { name: t.name, category: t.category },
+        });
+        tagIds.push(tag.id);
+      } catch (err) {
+        // 并发 upsert 竞态条件：另一个任务已先创建了同名标签，查询已有记录
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          const existing = await prisma.tag.findUnique({
+            where: { name_category: { name: t.name, category: t.category } },
+          });
+          if (existing) tagIds.push(existing.id);
+        } else {
+          throw err;
+        }
+      }
     }
     await prisma.candidate.update({
       where: { id: candidate.id },
@@ -100,7 +119,7 @@ export async function parseResumeFromStorage(params: {
     });
   }
 
-  // 6. 完成
+  // 7. 完成
   report(100, '解析完成！');
   return { candidateId: candidate.id };
 }

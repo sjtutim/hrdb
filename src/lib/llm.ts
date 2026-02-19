@@ -8,6 +8,12 @@ export function cleanResumeText(text: string): string {
 
   // 1. 去除跨行的 ID 碎片块（PDF 解析常见问题）
   cleaned = cleaned.replace(/ID\s*[：:]\s*\d+(?:\s+\d{4}[-/]\d{2}[-/]\d{2})?/gi, '');
+  // 独立 "ID" 行（不带冒号，招聘平台水印常见格式）
+  cleaned = cleaned.replace(/^\s*ID\s*$/gim, '');
+  // "数字 YYYY-MM-DD" 格式（如 "2619 2023-06-16"，候选人ID+日期水印）
+  cleaned = cleaned.replace(/^\s*\d{3,8}\s+\d{4}[-/]\d{2}[-/]\d{2}\s*$/gm, '');
+  // "MM DD" 日期碎片（如 "06 16"，日期水印被拆散后的残留）
+  cleaned = cleaned.replace(/^\s*\d{1,2}\s+\d{1,2}\s*$/gm, '');
 
   // 2. 去除常见的水印和页眉页脚
   const watermarkPatterns = [
@@ -40,6 +46,8 @@ export function cleanResumeText(text: string): string {
       const meaningfulShortWords = ['硕士', '博士', '本科', '专科', '男', '女', '至今'];
       if (!meaningfulShortWords.includes(trimmed)) continue;
     }
+    // 孤立的4位年份行（如单独一行的 "2023"），极可能是水印碎片
+    if (/^\d{4}$/.test(trimmed)) continue;
     filteredLines.push(line);
   }
   cleaned = filteredLines.join('\n');
@@ -121,7 +129,8 @@ export class ResumeValidationError extends Error {
 
 const SYSTEM_PROMPT = `你是一个专业的HR简历解析助手。
 
-提供给你的文本可能来自PDF/Word解析，包含重复内容和噪音碎片。你需要忽略这些噪音，准确提取信息。
+提供给你的文本可能来自PDF/Word解析，包含重复内容和噪音碎片。需要清除的文字包括并不限于明显是水印提取的残留，文中无意义重复出现的“上海闵盛医疗科技有限公司”，”上海顿慧医疗科技发展有限公司“及其相关残片（如“上海闵”、“疗科技有限公司”、“上海闵盛医疗科技”等）。
+孤立出现的日期（如“2023-06-16”）。你需要忽略这些噪音，准确提取信息。
 
 **重要：输入文本中的重复内容处理规则**
 - 同一公司名、学校名、职位描述等可能因PDF解析问题重复出现多次，你只需提取1次
@@ -138,14 +147,14 @@ const SYSTEM_PROMPT = `你是一个专业的HR简历解析助手。
 1. 准确提取姓名、邮箱、手机号、教育背景、工作经验、当前职位和公司
 2. initialScore（0-100）：完整性30% + 表达力30% + 质量40%
 3. aiEvaluation：优势、不足、建议，200字以上
-4. tags 至少10个标签：SKILL/INDUSTRY/EDUCATION/EXPERIENCE/PERSONALITY/OTHER
+4. tags 至少10个标签：SKILL/INDUSTRY/EDUCATION/EXPERIENCE/PERSONALITY/OTHER，主要是SKILL为主，至少5个。
 
 返回严格JSON格式（无markdown代码块标记）：
 {
   "isResume": true,
   "rejectReason": null,
   "name": "姓名",
-  "email": "邮箱，未找到填 unknown@example.com",
+  "email": "邮箱，未找到填 unknown@email.com",
   "phone": "手机号，未找到填 null",
   "education": "整洁的教育背景，无重复",
   "workExperience": "整洁的工作经历，无重复",

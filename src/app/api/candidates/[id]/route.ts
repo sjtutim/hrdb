@@ -208,12 +208,15 @@ export async function DELETE(
       );
     }
 
-    // 删除候选人（级联删除关联数据）
-    await prisma.candidate.delete({
-      where: {
-        id: candidateId,
-      },
-    });
+    // 在事务中按依赖顺序删除关联数据，再删除候选人
+    await prisma.$transaction([
+      // InterviewScore 通过 Interview 的 onDelete:Cascade 自动级联，无需单独处理
+      prisma.interview.deleteMany({ where: { candidateId } }),
+      prisma.jobMatch.deleteMany({ where: { candidateId } }),
+      prisma.evaluation.deleteMany({ where: { candidateId } }),
+      prisma.employee.deleteMany({ where: { candidateId } }),
+      prisma.candidate.delete({ where: { id: candidateId } }),
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error) {
