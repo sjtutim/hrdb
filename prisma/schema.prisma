@@ -10,13 +10,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// 角色定义模型
+model Role {
+  id        String   @id @default(uuid())
+  value     String   @unique  // 角色标识，如 "ADMIN"、"HR"
+  label     String            // 角色显示名称，如 "管理员"
+  isSystem  Boolean  @default(false) // 系统内置角色，不可删除
+  createdAt DateTime @default(now())
+}
+
 // 用户模型
 model User {
   id             String          @id @default(uuid())
   name           String
   email          String          @unique
   password       String?
-  role           UserRole        @default(RECRUITER)
+  role           String          @default("RECRUITER")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   candidates     Candidate[]     // 招聘人员关联的候选人
@@ -25,13 +34,6 @@ model User {
   createdInterviews Interview[]  @relation("InterviewCreator") // 创建的面试
   evaluations    Evaluation[]    // 提交的评估
   interviewScores InterviewScore[] // 面试评分记录
-}
-
-enum UserRole {
-  ADMIN          // 管理员
-  HR             // 人力资源
-  RECRUITER      // 招聘人员
-  MANAGER        // 部门主管
 }
 
 // 候选人模型
@@ -364,8 +366,8 @@ enum ScheduledParseStatus {
 
 // 角色菜单权限模型
 model RolePermission {
-  id       String   @id @default(uuid())
-  role     UserRole
-  menuKey  String   // dashboard, candidates, interviews, jobs, matching, employees
+  id       String @id @default(uuid())
+  role     String
+  menuKey  String // dashboard, candidates, interviews, jobs, matching, employees
   @@unique([role, menuKey])
 }

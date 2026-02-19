@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { useToast } from "@/app/lib/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"
@@ -24,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select"
-import { Users, Tags, Plus, Pencil, Trash2, Settings, Shield, Loader2 } from "lucide-react"
+import { Users, Tags, Plus, Pencil, Trash2, Settings, Shield, Loader2, Lock } from "lucide-react"
 
 interface User {
   id: string
@@ -41,12 +42,13 @@ interface Tag {
   createdAt: string
 }
 
-const ROLES = [
-  { value: "ADMIN", label: "管理员" },
-  { value: "HR", label: "人力资源" },
-  { value: "RECRUITER", label: "招聘人员" },
-  { value: "MANAGER", label: "部门主管" },
-]
+interface Role {
+  id: string
+  value: string
+  label: string
+  isSystem: boolean
+  createdAt: string
+}
 
 const TAG_CATEGORIES = [
   { value: "SKILL", label: "技能" },
@@ -67,7 +69,6 @@ const roleBadgeVariant = (role: string) => {
   }
 }
 
-const roleLabel = (role: string) => ROLES.find(r => r.value === role)?.label || role
 const categoryLabel = (cat: string) => TAG_CATEGORIES.find(c => c.value === cat)?.label || cat
 
 export default function AdminPage() {
@@ -138,6 +139,7 @@ export default function AdminPage() {
 
 function UserManagement() {
   const [users, setUsers] = useState<User[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -148,9 +150,12 @@ function UserManagement() {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const res = await fetch("/api/users")
-      const data = await res.json()
-      setUsers(data)
+      const [usersRes, rolesRes] = await Promise.all([
+        fetch("/api/users"),
+        fetch("/api/roles"),
+      ])
+      setUsers(await usersRes.json())
+      setRoles(await rolesRes.json())
     } catch {
       console.error("获取用户列表失败")
     } finally {
@@ -269,7 +274,7 @@ function UserManagement() {
                   <td className="py-3 px-2 text-muted-foreground">{user.email}</td>
                   <td className="py-3 px-2">
                     <Badge variant={roleBadgeVariant(user.role)}>
-                      {roleLabel(user.role)}
+                      {roles.find(r => r.value === user.role)?.label || user.role}
                     </Badge>
                   </td>
                   <td className="py-3 px-2 text-muted-foreground">
@@ -347,7 +352,7 @@ function UserManagement() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROLES.map((role) => (
+                  {roles.map((role) => (
                     <SelectItem key={role.value} value={role.value}>
                       {role.label}
                     </SelectItem>
@@ -636,68 +641,177 @@ const MENU_ITEMS = [
   { key: "employees", label: "人才库" },
 ]
 
-// 扁平化所有菜单项（包含子菜单）
 const ALL_MENU_KEYS = MENU_ITEMS.flatMap(item =>
   item.children ? [item.key, ...item.children.map(c => c.key)] : [item.key]
 )
 
 function RoleManagement() {
+  const { toast } = useToast()
+  const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
-  const allMenuKeys = ALL_MENU_KEYS
+  // 添加角色 dialog
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [addForm, setAddForm] = useState({ value: "", label: "" })
+  const [addError, setAddError] = useState("")
+  const [addLoading, setAddLoading] = useState(false)
 
-  const fetchPermissions = useCallback(async () => {
+  // 编辑角色 dialog
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingRole, setEditingRole] = useState<Role | null>(null)
+  const [editLabel, setEditLabel] = useState("")
+  const [editError, setEditError] = useState("")
+  const [editLoading, setEditLoading] = useState(false)
+
+  // 删除角色 dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deletingRole, setDeletingRole] = useState<Role | null>(null)
+  const [deleteError, setDeleteError] = useState("")
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/role-permissions")
-      const data = await res.json()
-      setPermissions(data)
+      const [rolesRes, permsRes] = await Promise.all([
+        fetch("/api/roles"),
+        fetch("/api/role-permissions"),
+      ])
+      setRoles(await rolesRes.json())
+      setPermissions(await permsRes.json())
     } catch {
-      console.error("获取角色权限失败")
+      console.error("获取角色数据失败")
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { fetchPermissions() }, [fetchPermissions])
+  useEffect(() => { fetchData() }, [fetchData])
 
-  const getMenuKeys = (role: string): string[] => {
-    // 如果该角色没有配置记录，默认全部菜单
-    if (!permissions[role]) return allMenuKeys
-    return permissions[role]
+  const getMenuKeys = (roleValue: string): string[] => {
+    if (!permissions[roleValue]) return ALL_MENU_KEYS
+    return permissions[roleValue]
   }
 
-  const toggleMenu = (role: string, menuKey: string) => {
-    if (role === "ADMIN") return // ADMIN 不可修改
-    const current = getMenuKeys(role)
+  const toggleMenu = (roleValue: string, menuKey: string) => {
+    if (roleValue === "ADMIN") return
+    const current = getMenuKeys(roleValue)
     const next = current.includes(menuKey)
       ? current.filter((k) => k !== menuKey)
       : [...current, menuKey]
-    setPermissions((prev) => ({ ...prev, [role]: next }))
+    setPermissions((prev) => ({ ...prev, [roleValue]: next }))
   }
 
-  const handleSave = async (role: string) => {
-    setSaving(role)
-    setSuccessMsg(null)
+  const handleSave = async (roleValue: string) => {
+    setSaving(roleValue)
     try {
-      const menuKeys = getMenuKeys(role)
+      const menuKeys = getMenuKeys(roleValue)
       const res = await fetch("/api/role-permissions", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, menuKeys }),
+        body: JSON.stringify({ role: roleValue, menuKeys }),
       })
       if (res.ok) {
-        setSuccessMsg(`${role} 权限保存成功`)
-        setTimeout(() => setSuccessMsg(null), 3000)
+        toast({ title: "保存成功", description: "角色权限已更新" })
       } else {
-        console.error("保存失败")
+        toast({ title: "保存失败", description: "请稍后重试", variant: "destructive" })
       }
     } catch {
-      console.error("保存角色权限失败")
+      toast({ title: "保存失败", description: "网络错误，请重试", variant: "destructive" })
     } finally {
       setSaving(null)
+    }
+  }
+
+  const handleAddRole = async () => {
+    setAddError("")
+    if (!addForm.value || !addForm.label) {
+      setAddError("角色标识和名称不能为空")
+      return
+    }
+    setAddLoading(true)
+    try {
+      const res = await fetch("/api/roles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: addForm.value.toUpperCase(), label: addForm.label }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setAddError(data.error || "创建失败")
+        return
+      }
+      setAddDialogOpen(false)
+      setAddForm({ value: "", label: "" })
+      fetchData()
+      toast({ title: "添加成功", description: `角色「${data.label}」已创建` })
+    } catch {
+      setAddError("创建失败，请重试")
+    } finally {
+      setAddLoading(false)
+    }
+  }
+
+  const openEditDialog = (role: Role) => {
+    setEditingRole(role)
+    setEditLabel(role.label)
+    setEditError("")
+    setEditDialogOpen(true)
+  }
+
+  const handleEditRole = async () => {
+    setEditError("")
+    if (!editLabel.trim()) {
+      setEditError("角色名称不能为空")
+      return
+    }
+    setEditLoading(true)
+    try {
+      const res = await fetch(`/api/roles/${editingRole!.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: editLabel }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setEditError(data.error || "修改失败")
+        return
+      }
+      setEditDialogOpen(false)
+      fetchData()
+      toast({ title: "修改成功", description: "角色名称已更新" })
+    } catch {
+      setEditError("修改失败，请重试")
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  const openDeleteDialog = (role: Role) => {
+    setDeletingRole(role)
+    setDeleteError("")
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteRole = async () => {
+    if (!deletingRole) return
+    setDeleteLoading(true)
+    setDeleteError("")
+    try {
+      const res = await fetch(`/api/roles/${deletingRole.id}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) {
+        setDeleteError(data.error || "删除失败")
+        return
+      }
+      setDeleteDialogOpen(false)
+      setDeletingRole(null)
+      fetchData()
+      toast({ title: "删除成功", description: "角色已删除" })
+    } catch {
+      setDeleteError("删除失败，请重试")
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -708,23 +822,23 @@ function RoleManagement() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">角色菜单权限</h2>
-        <p className="text-sm text-muted-foreground">配置每个角色可以看到的导航菜单</p>
+        <div>
+          <h2 className="text-lg font-semibold">角色管理</h2>
+          <p className="text-sm text-muted-foreground">管理系统角色及其菜单访问权限</p>
+        </div>
+        <Button size="sm" onClick={() => { setAddForm({ value: "", label: "" }); setAddError(""); setAddDialogOpen(true) }}>
+          <Plus className="h-4 w-4 mr-1" />
+          添加角色
+        </Button>
       </div>
 
-      {successMsg && (
-        <div className="p-3 bg-green-100 text-green-700 rounded-md">
-          {successMsg}
-        </div>
-      )}
-
       <div className="grid gap-4 md:grid-cols-2">
-        {ROLES.map((role) => {
+        {roles.map((role) => {
           const isAdmin = role.value === "ADMIN"
           const menuKeys = getMenuKeys(role.value)
 
           return (
-            <Card key={role.value}>
+            <Card key={role.id}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -732,17 +846,42 @@ function RoleManagement() {
                     <Badge variant={roleBadgeVariant(role.value)} className="text-xs">
                       {role.value}
                     </Badge>
+                    {role.isSystem && (
+                      <span title="系统内置角色">
+                        <Lock className="h-3 w-3 text-muted-foreground" />
+                      </span>
+                    )}
                   </div>
-                  {!isAdmin && (
+                  <div className="flex items-center gap-1">
+                    {!isAdmin && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleSave(role.value)}
+                        disabled={saving === role.value}
+                      >
+                        {saving === role.value && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                        保存
+                      </Button>
+                    )}
                     <Button
-                      size="sm"
-                      onClick={() => handleSave(role.value)}
-                      disabled={saving === role.value}
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => openEditDialog(role)}
                     >
-                      {saving === role.value && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                      保存
+                      <Pencil className="h-4 w-4" />
                     </Button>
-                  )}
+                    {!role.isSystem && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => openDeleteDialog(role)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {isAdmin && (
                   <p className="text-xs text-muted-foreground">管理员始终拥有全部菜单权限</p>
@@ -752,7 +891,6 @@ function RoleManagement() {
                 <div className="space-y-3">
                   {MENU_ITEMS.map((menu) => (
                     <div key={menu.key}>
-                      {/* 父菜单 */}
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={`${role.value}-${menu.key}`}
@@ -767,7 +905,6 @@ function RoleManagement() {
                           {menu.label}
                         </Label>
                       </div>
-                      {/* 子菜单 */}
                       {menu.children && menu.children.length > 0 && (
                         <div className="ml-6 mt-1 space-y-1 border-l-2 border-muted pl-3">
                           {menu.children.map((child) => (
@@ -796,6 +933,104 @@ function RoleManagement() {
           )
         })}
       </div>
+
+      {/* 添加角色 Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>添加角色</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {addError && (
+              <p className="text-sm text-destructive bg-destructive/10 p-2 rounded">{addError}</p>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="roleValue">角色标识 *</Label>
+              <Input
+                id="roleValue"
+                value={addForm.value}
+                onChange={(e) => setAddForm({ ...addForm, value: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "") })}
+                placeholder="例如：SALES_MANAGER"
+              />
+              <p className="text-xs text-muted-foreground">仅允许大写字母、数字和下划线</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="roleLabel">角色名称 *</Label>
+              <Input
+                id="roleLabel"
+                value={addForm.label}
+                onChange={(e) => setAddForm({ ...addForm, label: e.target.value })}
+                placeholder="例如：销售主管"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
+            <Button onClick={handleAddRole} disabled={addLoading}>
+              {addLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              添加
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 编辑角色名称 Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>修改角色名称</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {editError && (
+              <p className="text-sm text-destructive bg-destructive/10 p-2 rounded">{editError}</p>
+            )}
+            <div className="space-y-2">
+              <Label>角色标识</Label>
+              <p className="text-sm text-muted-foreground font-mono bg-muted px-3 py-2 rounded">{editingRole?.value}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editLabel">角色名称 *</Label>
+              <Input
+                id="editLabel"
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                placeholder="请输入角色名称"
+                onKeyDown={(e) => e.key === "Enter" && handleEditRole()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
+            <Button onClick={handleEditRole} disabled={editLoading}>
+              {editLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 删除角色确认 Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认删除角色</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {deleteError && (
+              <p className="text-sm text-destructive bg-destructive/10 p-2 rounded mb-4">{deleteError}</p>
+            )}
+            <p>确定要删除角色 <strong>{deletingRole?.label}</strong>（{deletingRole?.value}）吗？</p>
+            <p className="text-sm text-muted-foreground mt-2">该角色的菜单权限配置也将一并删除。请确保没有用户正在使用此角色。</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>取消</Button>
+            <Button variant="destructive" onClick={handleDeleteRole} disabled={deleteLoading}>
+              {deleteLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

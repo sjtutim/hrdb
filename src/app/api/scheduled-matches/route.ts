@@ -8,11 +8,13 @@ const prisma = new PrismaClient();
 export async function GET(request: NextRequest) {
   try {
     const jobPostingId = request.nextUrl.searchParams.get('jobPostingId');
-    const status = request.nextUrl.searchParams.get('status');
+    // 支持多个 status 值：?status=PENDING&status=RUNNING
+    const statuses = request.nextUrl.searchParams.getAll('status');
 
     const where: any = {};
     if (jobPostingId) where.jobPostingId = jobPostingId;
-    if (status) where.status = status;
+    if (statuses.length === 1) where.status = statuses[0];
+    else if (statuses.length > 1) where.status = { in: statuses };
 
     const tasks = await prisma.scheduledMatch.findMany({
       where,

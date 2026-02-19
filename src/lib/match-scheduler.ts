@@ -57,8 +57,8 @@ async function checkAndRunScheduledMatches(): Promise<void> {
   }
 }
 
-/** 执行单个计划匹配任务 */
-async function executeScheduledMatch(taskId: string): Promise<void> {
+/** 执行单个计划匹配任务（可从外部调用以立即执行） */
+export async function executeScheduledMatch(taskId: string): Promise<void> {
   console.log(`[计划匹配] 开始执行任务: ${taskId}`);
 
   // 标记为 RUNNING

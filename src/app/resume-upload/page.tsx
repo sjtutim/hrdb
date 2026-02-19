@@ -336,6 +336,7 @@ export default function ResumeUpload() {
         if (!scheduleResponse.ok) throw new Error('创建延时解析任务失败');
         const scheduleData = await scheduleResponse.json();
         setScheduleInfo(scheduleData.message);
+        window.dispatchEvent(new Event('queue:updated'));
       } catch (err) {
         console.error('创建延时解析任务失败:', err);
         setScheduleInfo('文件已上传，但创建延时任务失败，请联系管理员');

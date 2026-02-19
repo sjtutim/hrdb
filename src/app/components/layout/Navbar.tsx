@@ -27,6 +27,7 @@ import {
 import { Button } from "@/app/components/ui/button"
 import { ThemeToggle } from "@/app/components/ui/theme-toggle"
 import { ChangePasswordDialog } from "./ChangePasswordDialog"
+import { ParseQueuePanel } from "./ParseQueuePanel"
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar"
 import { Badge } from "@/app/components/ui/badge"
 import {
@@ -352,6 +353,7 @@ const Navbar = () => {
 
           {/* Right Section: User Menu */}
           <div className="flex items-center gap-2">
+            <ParseQueuePanel />
             <ThemeToggle />
 
             {session ? (

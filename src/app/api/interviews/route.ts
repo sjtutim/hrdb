@@ -27,19 +27,19 @@ export async function GET(request: NextRequest) {
     const where = isAdmin
       ? {}
       : {
-          OR: [
-            {
-              interviews: {
-                some: {
-                  id: session.user.id,
-                },
+        OR: [
+          {
+            interviews: {
+              some: {
+                id: session.user.id,
               },
             },
-            {
-              createdById: session.user.id,
-            },
-          ],
-        };
+          },
+          {
+            createdById: session.user.id,
+          },
+        ],
+      };
 
     const interviews = await prisma.interview.findMany({
       where,
@@ -99,6 +99,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 验证 session 中的用户 ID 是否在数据库中真实存在，
+    // 防止 JWT 中保存旧 userId（数据库重置后）导致外键约束错误
+    let resolvedCreatedById: string | null = null;
+    if (session?.user?.id) {
+      const userExists = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { id: true },
+      });
+      resolvedCreatedById = userExists?.id ?? null;
+    }
+
     // 创建面试记录
     const interview = await prisma.interview.create({
       data: {
@@ -106,7 +117,7 @@ export async function POST(request: NextRequest) {
         interviews: {
           connect: data.interviewerIds.map((id: string) => ({ id })),
         },
-        createdById: session?.user?.id || null,
+        createdById: resolvedCreatedById,
         type: data.type,
         scheduledAt: new Date(data.scheduledAt),
         location: data.location || null,
@@ -131,7 +142,7 @@ export async function POST(request: NextRequest) {
         },
       },
     });
-    
+
     // 更新候选人状态为面试中
     await prisma.candidate.update({
       where: {
@@ -141,7 +152,7 @@ export async function POST(request: NextRequest) {
         status: 'INTERVIEWING',
       },
     });
-    
+
     return NextResponse.json(interview);
   } catch (error) {
     console.error('创建面试错误:', error);

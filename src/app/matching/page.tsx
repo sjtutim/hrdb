@@ -508,6 +508,7 @@ export default function MatchingPage() {
         throw new Error(data.error || '创建失败');
       }
       await loadScheduledTasks(selectedJobId);
+      window.dispatchEvent(new Event('queue:updated'));
     } catch (err) {
       console.error('创建计划匹配失败:', err);
       alert(err instanceof Error ? err.message : '创建计划匹配失败');

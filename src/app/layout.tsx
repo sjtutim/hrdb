@@ -4,6 +4,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import ConditionalFooter from './components/layout/ConditionalFooter';
 import ConditionalNavbar from './components/layout/ConditionalNavbar';
 import { ThemeProvider } from './components/ui/theme-provider';
+import { Toaster } from './components/ui/toaster';
 
 export const metadata = {
   title: '企业人才库 - 人才管理系统',
@@ -32,6 +33,7 @@ export default function RootLayout({
                 <ConditionalFooter />
               </div>
             </ProtectedRoute>
+            <Toaster />
           </AuthProvider>
         </ThemeProvider>
       </body>
