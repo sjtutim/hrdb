@@ -401,7 +401,7 @@ export function QueuePanel() {
           <div className="px-4 py-2.5 bg-muted/30 border-t border-border">
             <p className="text-xs text-muted-foreground text-center">
               {tab === 'parse'
-                ? '凌晨 3:00 自动解析'
+                ? '解析中任务离开页面后仍将继续'
                 : '凌晨 2:00 自动匹配'}{' '}
               · 每 30 秒刷新
             </p>

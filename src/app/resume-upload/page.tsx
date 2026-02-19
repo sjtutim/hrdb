@@ -220,19 +220,34 @@ export default function ResumeUpload() {
         if (!uploadResponse.ok) throw new Error('文件上传失败');
         const uploadData = await uploadResponse.json();
 
-        // 2. parse via SSE
-        updateTask(task.id, { status: 'parsing', progress: 15, progressText: '正在解析简历...' });
+        // 2. 入队：创建 ScheduledParse 记录（immediate=true 立即执行）
+        updateTask(task.id, { status: 'parsing', progress: 15, progressText: '正在加入解析队列...' });
 
-        const parseResponse = await fetch('/api/resume/parse', {
+        const scheduleRes = await fetch('/api/resume/schedule-parse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fileId: uploadData.fileId,
-            fileUrl: uploadData.fileUrl,
-            objectName: uploadData.objectName,
-            contentType: uploadData.contentType || task.file.type,
-            originalName: uploadData.originalName,
+            files: [{
+              fileId: uploadData.fileId,
+              objectName: uploadData.objectName,
+              contentType: uploadData.contentType || task.file.type,
+              originalName: uploadData.originalName,
+            }],
+            immediate: true,
           }),
+        });
+        if (!scheduleRes.ok) throw new Error('创建解析任务失败');
+        const scheduleData = await scheduleRes.json();
+        const queueTaskId = scheduleData.records[0].id;
+
+        // 通知 QueuePanel 刷新（任务已入队，离开页面后仍可追踪）
+        window.dispatchEvent(new Event('queue:updated'));
+
+        // 3. 立即执行并通过 SSE 获取实时进度
+        updateTask(task.id, { progress: 20, progressText: '正在解析简历...' });
+
+        const parseResponse = await fetch(`/api/resume/parse-queue/${queueTaskId}`, {
+          method: 'POST',
         });
 
         if (!parseResponse.ok) throw new Error('简历解析失败');

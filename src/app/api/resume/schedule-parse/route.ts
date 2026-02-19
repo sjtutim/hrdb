@@ -16,13 +16,14 @@ function getNext3AM(): Date {
 
 export async function POST(request: NextRequest) {
   try {
-    const { files } = await request.json();
+    const { files, immediate } = await request.json();
 
     if (!Array.isArray(files) || files.length === 0) {
       return NextResponse.json({ error: '缺少文件列表' }, { status: 400 });
     }
 
-    const scheduledFor = getNext3AM();
+    // immediate=true 时立即入队（scheduledFor=now），否则凌晨3点
+    const scheduledFor = immediate ? new Date() : getNext3AM();
 
     const records = await prisma.$transaction(
       files.map((f: { fileId: string; objectName: string; contentType: string; originalName: string }) =>
