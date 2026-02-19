@@ -217,9 +217,8 @@ function StatCard({ title, value, icon: Icon, trend, trendLabel, color, href }: 
               <h3 className="text-2xl font-bold tracking-tight">{value}</h3>
               {trend && (
                 <div className="flex items-center gap-1.5 pt-1">
-                  <span className={`flex items-center text-xs font-medium ${
-                    trend.positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                  }`}>
+                  <span className={`flex items-center text-xs font-medium ${trend.positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
                     {trend.positive ? <TrendingUp className="h-3 w-3 mr-0.5" /> : <TrendingDown className="h-3 w-3 mr-0.5" />}
                     {trend.value}
                   </span>
@@ -722,7 +721,7 @@ export default function DashboardPage() {
         {/* ===== 右侧：1/3 宽度 ===== */}
         <div className="space-y-6">
 
-          {/* AI 建议 */}
+          {/* AI 建议
           <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
@@ -743,7 +742,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
 
           {/* 最近动态 */}
           <Card>

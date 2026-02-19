@@ -77,8 +77,8 @@ export function ChangePasswordDialog() {
 
   return (
     <>
-      <DropdownMenuItem 
-        onClick={() => setOpen(true)}
+      <DropdownMenuItem
+        onSelect={(e) => { e.preventDefault(); setOpen(true) }}
         className="cursor-pointer"
       >
         <Key className="mr-2 h-4 w-4" />
