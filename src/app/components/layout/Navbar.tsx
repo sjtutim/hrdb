@@ -152,11 +152,11 @@ const Navbar = () => {
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="navbar-logo flex items-center gap-2.5 group">
               <div className="navbar-logo-icon h-9 w-9 rounded-xl overflow-hidden flex items-center justify-center">
-                <img src="/logo.png" alt="企业人才库" width={36} height={36} className="object-cover" />
+                <img src="/logo.png" alt="顿慧人才库" width={36} height={36} className="object-cover" />
               </div>
               <div className="flex flex-col">
                 <span className="font-semibold text-base hidden sm:inline text-white/95 tracking-tight leading-tight">
-                  企业人才库
+                  顿慧人才库
                 </span>
                 <span className="text-[10px] text-white/40 hidden lg:block leading-tight">AI驱动的人才管理平台</span>
               </div>
@@ -212,7 +212,7 @@ const Navbar = () => {
                               </div>
                             </div>
                           </div>
-                          
+
                           {/* 菜单项 */}
                           <ul className="grid gap-2">
                             <ListItem href="/candidates" title="所有候选人" icon={<LayoutGrid className="h-4 w-4" />}>
@@ -260,7 +260,7 @@ const Navbar = () => {
                               </div>
                             </div>
                           </div>
-                          
+
                           <ul className="grid gap-2">
                             <ListItem href="/interviews" title="面试列表" icon={<LayoutGrid className="h-4 w-4" />}>
                               查看所有已安排的面试
@@ -305,7 +305,7 @@ const Navbar = () => {
                               </div>
                             </div>
                           </div>
-                          
+
                           <ul className="grid gap-2">
                             <ListItem href="/jobs" title="所有职位" icon={<LayoutGrid className="h-4 w-4" />}>
                               查看和管理所有职位发布
@@ -359,8 +359,8 @@ const Navbar = () => {
             {session ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     className="flex items-center gap-2 rounded-full h-9 pl-2 pr-3 hover:bg-white/10 text-white/90 border border-transparent hover:border-white/10 transition-all"
                   >
                     <Avatar className="h-7 w-7 ring-2 ring-white/20">
@@ -438,18 +438,18 @@ const Navbar = () => {
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           {/* 背景遮罩 */}
-          <div 
+          <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setMobileMenuOpen(false)}
           />
-          
+
           {/* 菜单面板 */}
           <div className="absolute top-16 left-0 right-0 bg-slate-900 border-t border-white/10 shadow-2xl animate-in slide-in-from-top-2">
             <nav className="flex flex-col p-4 gap-1 max-h-[calc(100vh-5rem)] overflow-y-auto">
               {/* 仪表盘 */}
               {isMenuVisible('dashboard') && (
-                <MobileNavLink 
-                  href="/dashboard" 
+                <MobileNavLink
+                  href="/dashboard"
                   icon={<Home className="h-5 w-5" />}
                   label="仪表盘"
                   isActive={isActive('/dashboard')}
@@ -459,21 +459,21 @@ const Navbar = () => {
 
               {/* 候选人分组 */}
               {isMenuVisible('candidates') && (
-                <MobileNavGroup 
+                <MobileNavGroup
                   icon={<Users className="h-5 w-5" />}
                   label="候选人"
                   isActive={isActive('/candidates')}
                 >
-                  <MobileNavLink 
-                    href="/candidates" 
+                  <MobileNavLink
+                    href="/candidates"
                     icon={<LayoutGrid className="h-4 w-4" />}
                     label="所有候选人"
                     isActive={pathname === '/candidates'}
                     onClick={() => setMobileMenuOpen(false)}
                     nested
                   />
-                  <MobileNavLink 
-                    href="/resume-upload" 
+                  <MobileNavLink
+                    href="/resume-upload"
                     icon={<UserPlus className="h-4 w-4" />}
                     label="添加候选人"
                     isActive={pathname === '/resume-upload'}
@@ -481,8 +481,8 @@ const Navbar = () => {
                     nested
                   />
                   {isMenuVisible('candidates:matching') && (
-                    <MobileNavLink 
-                      href="/matching" 
+                    <MobileNavLink
+                      href="/matching"
                       icon={<Search className="h-4 w-4" />}
                       label="智能匹配"
                       isActive={pathname === '/matching'}
@@ -495,29 +495,29 @@ const Navbar = () => {
 
               {/* 面试分组 */}
               {isMenuVisible('interviews') && (
-                <MobileNavGroup 
+                <MobileNavGroup
                   icon={<Calendar className="h-5 w-5" />}
                   label="面试"
                   isActive={isActive('/interviews')}
                 >
-                  <MobileNavLink 
-                    href="/interviews" 
+                  <MobileNavLink
+                    href="/interviews"
                     icon={<LayoutGrid className="h-4 w-4" />}
                     label="面试列表"
                     isActive={pathname === '/interviews'}
                     onClick={() => setMobileMenuOpen(false)}
                     nested
                   />
-                  <MobileNavLink 
-                    href="/interviews/create" 
+                  <MobileNavLink
+                    href="/interviews/create"
                     icon={<PlusCircle className="h-4 w-4" />}
                     label="安排面试"
                     isActive={pathname === '/interviews/create'}
                     onClick={() => setMobileMenuOpen(false)}
                     nested
                   />
-                  <MobileNavLink 
-                    href="/interviews/calendar" 
+                  <MobileNavLink
+                    href="/interviews/calendar"
                     icon={<Calendar className="h-4 w-4" />}
                     label="面试日历"
                     isActive={pathname === '/interviews/calendar'}
@@ -529,21 +529,21 @@ const Navbar = () => {
 
               {/* 职位分组 */}
               {isMenuVisible('jobs') && (
-                <MobileNavGroup 
+                <MobileNavGroup
                   icon={<Briefcase className="h-5 w-5" />}
                   label="职位"
                   isActive={isActive('/jobs')}
                 >
-                  <MobileNavLink 
-                    href="/jobs" 
+                  <MobileNavLink
+                    href="/jobs"
                     icon={<LayoutGrid className="h-4 w-4" />}
                     label="所有职位"
                     isActive={pathname === '/jobs'}
                     onClick={() => setMobileMenuOpen(false)}
                     nested
                   />
-                  <MobileNavLink 
-                    href="/jobs/create" 
+                  <MobileNavLink
+                    href="/jobs/create"
                     icon={<PlusCircle className="h-4 w-4" />}
                     label="发布职位"
                     isActive={pathname === '/jobs/create'}
@@ -555,8 +555,8 @@ const Navbar = () => {
 
               {/* 人才库 */}
               {isMenuVisible('employees') && (
-                <MobileNavLink 
-                  href="/employees" 
+                <MobileNavLink
+                  href="/employees"
                   icon={<LayoutGrid className="h-5 w-5" />}
                   label="人才库"
                   isActive={isActive('/employees')}
@@ -566,8 +566,8 @@ const Navbar = () => {
 
               {/* 系统管理 */}
               {session?.user?.role === 'ADMIN' && (
-                <MobileNavLink 
-                  href="/admin" 
+                <MobileNavLink
+                  href="/admin"
                   icon={<Shield className="h-5 w-5" />}
                   label="系统管理"
                   isActive={isActive('/admin')}
@@ -615,8 +615,8 @@ function MobileNavLink({ href, icon, label, isActive, onClick, nested }: MobileN
       href={href}
       className={cn(
         "flex items-center rounded-xl text-sm font-medium transition-all",
-        nested 
-          ? "px-4 py-2.5 ml-4 text-white/70" 
+        nested
+          ? "px-4 py-2.5 ml-4 text-white/70"
           : "px-4 py-3.5 text-white/90"
         ,
         isActive
@@ -662,11 +662,11 @@ function MobileNavGroup({ icon, label, isActive, children }: MobileNavGroupProps
       >
         <span className="mr-3">{icon}</span>
         {label}
-        <ChevronDown 
+        <ChevronDown
           className={cn(
             "ml-auto h-4 w-4 transition-transform duration-200",
             isOpen && "rotate-180"
-          )} 
+          )}
         />
       </button>
       {isOpen && (
