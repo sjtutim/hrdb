@@ -503,3 +503,177 @@ git pull origin main
 ./docker/deploy.sh build
 ./docker/deploy.sh restart
 ```
+
+---
+
+## 含数据库变更的代码升级指南
+
+> 适用于：同时修改了前端/后端代码，**并且**新增或修改了数据表结构（如增加列、新建表）。
+> 目标：**保留线上所有数据，安全完成升级**。
+
+### 概念说明
+
+本项目使用 Prisma 管理数据库变更。每次 schema 改动都需要生成对应的迁移文件，部署时由 `migrate` 容器自动执行，**增量叠加**到现有数据库上，不会清空数据。
+
+```
+开发机                          服务器
+───────                         ──────
+1. 改 schema.prisma
+2. 生成迁移文件          →  git push
+3. 提交代码                     4. 拉取代码
+                                5. 构建新镜像
+                                6. 执行迁移（增量，保留数据）
+                                7. 重启应用
+```
+
+---
+
+### 第一阶段：开发机操作
+
+#### 步骤 1：修改 schema
+
+编辑 `prisma/schema.prisma`，添加新列或新表，例如：
+
+```prisma
+model Candidate {
+  // 新增一列
+  linkedinUrl  String?
+}
+```
+
+#### 步骤 2：生成迁移文件
+
+```bash
+# 生成迁移文件（会自动对比当前 schema 与数据库的差异）
+npx prisma migrate dev --name add_linkedin_url_to_candidate
+```
+
+执行后会在 `prisma/migrations/` 目录生成类似下面的文件：
+
+```
+prisma/migrations/
+└── 20260219120000_add_linkedin_url_to_candidate/
+    └── migration.sql
+```
+
+> **注意**：`migrate dev` 会同步修改本地数据库结构，不影响服务器数据。
+
+#### 步骤 3：提交并推送代码
+
+```bash
+git add prisma/schema.prisma prisma/migrations/
+git add src/   # 前端改动
+git commit -m "feat: add linkedinUrl to candidate"
+git push origin main
+```
+
+**必须将迁移文件和代码一起提交**，服务器部署时依赖这些文件执行升级。
+
+---
+
+### 第二阶段：服务器操作
+
+登录服务器，进入项目目录执行以下命令：
+
+#### 步骤 4：拉取最新代码
+
+```bash
+git pull origin main
+```
+
+确认迁移文件已拉取：
+
+```bash
+ls prisma/migrations/
+# 应能看到新生成的迁移目录
+```
+
+#### 步骤 5：构建新镜像
+
+```bash
+./docker/deploy.sh build
+```
+
+#### 步骤 6：执行数据库迁移
+
+```bash
+./docker/deploy.sh migrate
+```
+
+这一步会：
+- 启动 postgres（如果未运行）
+- 运行 `prisma migrate deploy`，将新迁移**增量**应用到现有数据库
+- **不会删除任何现有数据**，仅执行 `ALTER TABLE` / `CREATE TABLE` 等结构变更
+
+#### 步骤 7：重启应用
+
+```bash
+./docker/deploy.sh restart
+```
+
+#### 步骤 8：验证
+
+```bash
+# 查看服务状态
+./docker/deploy.sh ps
+
+# 查看应用日志，确认无报错
+./docker/deploy.sh logs
+
+# 确认新列已存在（以 linkedinUrl 为例）
+docker exec hrdb-postgres psql -U hrdb -d hrdb \
+  -c "\d \"Candidate\""
+```
+
+---
+
+### 完整命令速查
+
+```bash
+# 服务器端四步升级（含 schema 变更）
+git pull origin main
+./docker/deploy.sh build
+./docker/deploy.sh migrate
+./docker/deploy.sh restart
+```
+
+---
+
+### 常见误区
+
+| 误区 | 正确做法 |
+|------|--------|
+| 直接在服务器上修改 schema.prisma | 始终在开发机生成迁移文件后提交 |
+| 用 `down-v` 重置数据库来"应用新结构" | 使用 `migrate` 增量升级，`down-v` 会**删除所有数据** |
+| 只推代码不推迁移文件 | 迁移文件（`prisma/migrations/`）必须随代码一起提交 |
+| 跳过 `build` 直接 `restart` | 必须先 `build` 让新代码生效 |
+
+---
+
+### 回滚方案
+
+Prisma 不支持自动回滚迁移。如果升级后出现问题：
+
+**方案一：回滚代码，保留数据库结构**
+
+```bash
+# 回滚到上一个版本的代码
+git checkout <上一个 commit>
+./docker/deploy.sh build
+./docker/deploy.sh restart
+# 注意：新增的列仍存在，但应用不再使用它，通常不影响运行
+```
+
+**方案二：从备份恢复（数据结构和数据一起回滚）**
+
+```bash
+# 升级前应先备份（强烈建议）
+docker exec hrdb-postgres pg_dump -U hrdb hrdb > backup_before_upgrade.sql
+
+# 如需恢复
+./docker/deploy.sh down-v
+./docker/deploy.sh deploy
+docker exec -i hrdb-postgres psql -U hrdb hrdb < backup_before_upgrade.sql
+```
+
+> **最佳实践**：每次升级前先执行备份，再执行迁移。

@@ -61,3 +61,48 @@ Required in `.env`:
 - The project uses Chinese (zh-CN) as the primary language for UI
 - Resume files are uploaded to `uploads/` directory
 - AI resume parsing currently uses mock implementations - actual API integration pending
+
+## Database Schema Change Rules
+
+当需要新增数据表列或修改表结构时，必须遵循以下流程，**严禁跳步**：
+
+### 开发阶段（本地）
+
+1. 修改 `prisma/schema.prisma`
+2. 生成迁移文件：
+   ```bash
+   npx prisma migrate dev --name <描述性名称>
+   ```
+3. 将迁移文件与代码**一起提交**：
+   ```bash
+   git add prisma/schema.prisma prisma/migrations/
+   git add src/
+   git commit -m "feat: ..."
+   git push origin main
+   ```
+
+> 迁移文件（`prisma/migrations/`）必须随代码一起入库，服务器部署依赖它执行增量升级。
+
+### 服务器部署阶段
+
+```bash
+git pull origin main          # 1. 拉取代码（含迁移文件）
+./docker/deploy.sh build      # 2. 构建新镜像
+./docker/deploy.sh migrate    # 3. 增量执行迁移（保留所有数据）
+./docker/deploy.sh restart    # 4. 重启应用
+```
+
+### 禁止事项
+
+- **禁止**直接在服务器上修改 `schema.prisma`
+- **禁止**用 `down-v` 来"应用新结构"（会删除所有数据）
+- **禁止**只推前端代码而不推迁移文件
+- **禁止**跳过 `build` 直接 `restart`
+
+### 升级前必须备份
+
+```bash
+docker exec hrdb-postgres pg_dump -U hrdb hrdb > backup_$(date +%Y%m%d).sql
+```
+
+详细说明参见 `docker/README.md` — 「含数据库变更的代码升级指南」章节。
