@@ -1,6 +1,9 @@
+# syntax=docker/dockerfile:1.7
 FROM node:20-bookworm-slim AS base
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
@@ -12,12 +15,16 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json pnpm-lock.yaml .npmrc ./
 COPY prisma ./prisma
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+  pnpm config set store-dir /pnpm/store \
+  && pnpm fetch --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+  pnpm install --frozen-lockfile --prefer-offline
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm build
+RUN --mount=type=cache,id=next-cache,target=/app/.next/cache pnpm build
 
 FROM base AS runner
 ENV NODE_ENV=production

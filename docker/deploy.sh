@@ -4,6 +4,9 @@ set -euo pipefail
 DOCKER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
 ENV_FILE="$DOCKER_DIR/.env.docker"
+DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}"
+COMPOSE_DOCKER_CLI_BUILD="${COMPOSE_DOCKER_CLI_BUILD:-1}"
+RUN_MIGRATION="${RUN_MIGRATION:-1}"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "[ERROR] Missing $ENV_FILE"
@@ -36,26 +39,32 @@ APP_IMAGE="${APP_IMAGE:-hrdb/app:local}"
 MIGRATE_IMAGE="${MIGRATE_IMAGE:-hrdb/migrate:local}"
 
 build_images() {
-  echo "[INFO] Building images with cache (incremental)..."
+  local targets=("$@")
+  if [ "${#targets[@]}" -eq 0 ]; then
+    targets=(app migrate)
+  fi
+
+  echo "[INFO] Building images with cache (incremental): ${targets[*]}"
   # 切换到 default builder（docker driver），复用主机 daemon 镜像缓存，无需 BuildKit 容器联网
   docker buildx use default 2>/dev/null || true
-  compose build app migrate
+  DOCKER_BUILDKIT="$DOCKER_BUILDKIT" COMPOSE_DOCKER_CLI_BUILD="$COMPOSE_DOCKER_CLI_BUILD" compose build --parallel "${targets[@]}"
 }
 
 ensure_local_images() {
-  local missing=0
+  local missing_targets=()
+
   if ! docker image inspect "$APP_IMAGE" >/dev/null 2>&1; then
     echo "[INFO] Local app image not found: $APP_IMAGE"
-    missing=1
+    missing_targets+=(app)
   fi
 
   if ! docker image inspect "$MIGRATE_IMAGE" >/dev/null 2>&1; then
     echo "[INFO] Local migrate image not found: $MIGRATE_IMAGE"
-    missing=1
+    missing_targets+=(migrate)
   fi
 
-  if [ "$missing" -eq 1 ]; then
-    build_images
+  if [ "${#missing_targets[@]}" -gt 0 ]; then
+    build_images "${missing_targets[@]}"
   else
     echo "[INFO] Reusing local images: $APP_IMAGE, $MIGRATE_IMAGE"
   fi
@@ -82,11 +91,24 @@ run_migrate_resolve() {
   compose run --rm migrate npx prisma migrate resolve --applied "$migration_name"
 }
 
-start_stack() {
+start_postgres() {
   echo "[INFO] Starting postgres..."
-  compose up -d postgres
+  if compose up -d --wait postgres >/dev/null 2>&1; then
+    echo "[INFO] Postgres is healthy"
+  else
+    # fallback for older compose versions without --wait
+    compose up -d postgres
+  fi
+}
 
-  run_migration
+start_stack() {
+  start_postgres
+
+  if [ "$RUN_MIGRATION" = "1" ]; then
+    run_migration
+  else
+    echo "[INFO] Skipping migration (RUN_MIGRATION=$RUN_MIGRATION)"
+  fi
 
   echo "[INFO] Starting app..."
   compose up -d app
@@ -120,17 +142,17 @@ case "$cmd" in
     start_stack
     ;;
   migrate)
-    compose up -d postgres
+    start_postgres
     ensure_local_images
     run_migration
     ;;
   seed)
-    compose up -d postgres
-    sleep 3
+    start_postgres
+    ensure_local_images
     run_seed
     ;;
   migrate-status)
-    compose up -d postgres
+    start_postgres
     ensure_local_images
     run_migrate_status
     ;;
@@ -141,7 +163,7 @@ case "$cmd" in
       echo "  Example: $0 migrate-resolve 20260216_add_interviewer_id_to_interview_score"
       exit 1
     fi
-    compose up -d postgres
+    start_postgres
     ensure_local_images
     run_migrate_resolve "$MIGRATION_NAME"
     ;;
@@ -179,6 +201,7 @@ Commands:
                          ENV 默认为 .env，首次部署前在开发机上运行
   build                  Build app + migrate images (uses Docker layer cache)
   up                     Reuse local images when available, then start postgres -> migrate -> app
+                         Set RUN_MIGRATION=0 to skip migration for faster restart
   deploy                 Always build latest images, then start postgres -> migrate -> app
   deploy-reuse           Try reusing local images; build only if image is missing
   migrate                Start postgres and run migration once
