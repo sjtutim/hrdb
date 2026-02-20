@@ -15,6 +15,12 @@ export async function GET(request: NextRequest) {
             scores: true,
           },
         },
+        employeeRecord: {
+          select: {
+            id: true,
+            status: true,
+          }
+        },
       },
       orderBy: {
         updatedAt: 'desc',

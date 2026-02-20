@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -481,7 +481,7 @@ export default function MatchingPage() {
   // 加载计划匹配任务
   const loadScheduledTasks = useCallback(async (jobId: string) => {
     try {
-      const res = await fetch(`/api/scheduled-matches?jobPostingId=${jobId}&status=PENDING`);
+      const res = await fetch(`/api/scheduled-matches?jobPostingId=${jobId}&status=PENDING&status=RUNNING`);
       if (res.ok) {
         setScheduledTasks(await res.json());
       }
@@ -610,8 +610,21 @@ export default function MatchingPage() {
     c => candidateStatusFilter === 'ALL' || c.status === candidateStatusFilter
   );
 
-  // 未匹配过的候选人（用于全选逻辑）
-  const unmatchedCandidates = filteredCandidatesByStatus.filter(c => c.matchedScore === null);
+  // 队列中的候选人ID集合（PENDING/RUNNING 的计划匹配任务）
+  const queuedCandidateIds = useMemo(() => {
+    const ids = new Set<string>();
+    scheduledTasks.forEach(task => {
+      if (['PENDING', 'RUNNING'].includes(task.status)) {
+        task.candidateIds.forEach(id => ids.add(id));
+      }
+    });
+    return ids;
+  }, [scheduledTasks]);
+
+  // 未匹配且未在队列中的候选人（用于全选逻辑）
+  const unmatchedCandidates = filteredCandidatesByStatus.filter(
+    c => c.matchedScore === null && !queuedCandidateIds.has(c.id)
+  );
 
   // 状态筛选变化时，默认全选当前筛选后的未匹配候选人
   useEffect(() => {
@@ -714,8 +727,9 @@ export default function MatchingPage() {
         currentCandidate: data.currentCandidate || null,
       });
 
-      // 开始轮询
+      // 开始轮询 + 通知队列面板刷新
       startPolling(selectedJobId);
+      window.dispatchEvent(new Event('queue:updated'));
     } catch (err) {
       console.error('运行匹配错误:', err);
       setError(err instanceof Error ? err.message : '运行匹配失败');
@@ -930,14 +944,17 @@ export default function MatchingPage() {
                     || (c.currentPosition || '').toLowerCase().includes(term)
                     || c.tags.some(t => t.name.toLowerCase().includes(term));
                 })
-                .map(candidate => (
+                .map(candidate => {
+                  const isQueued = queuedCandidateIds.has(candidate.id);
+                  const isDisabled = candidate.matchedScore !== null || isQueued;
+                  return (
                   <label
                     key={candidate.id}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer text-sm ${candidate.matchedScore !== null ? 'opacity-60 bg-muted/30' : 'hover:bg-muted/50'}`}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm ${isDisabled ? 'opacity-60 bg-muted/30 cursor-not-allowed' : 'hover:bg-muted/50 cursor-pointer'}`}
                   >
                     <Checkbox
                       checked={selectedCandidateIds.has(candidate.id)}
-                      disabled={candidate.matchedScore !== null}
+                      disabled={isDisabled}
                       onCheckedChange={(checked) => {
                         setSelectedCandidateIds(prev => {
                           const next = new Set(prev);
@@ -956,6 +973,11 @@ export default function MatchingPage() {
                         已匹配 {candidate.matchedScore}分
                       </Badge>
                     )}
+                    {isQueued && candidate.matchedScore === null && (
+                      <Badge className="text-xs shrink-0 bg-blue-50 text-blue-700 border-blue-200">
+                        队列中
+                      </Badge>
+                    )}
                     {candidate.currentPosition && (
                       <span className="text-muted-foreground truncate">· {candidate.currentPosition}</span>
                     )}
@@ -965,7 +987,8 @@ export default function MatchingPage() {
                       </Badge>
                     ))}
                   </label>
-                ))}
+                  );
+                })}
             </div>
           </CardContent>
         </Card>

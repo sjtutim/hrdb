@@ -215,7 +215,7 @@ export async function DELETE(
   }
 }
 
-// 部分更新候选人（如HR评估分）
+// 部分更新候选人（如HR评估分、入职状态）
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -224,16 +224,73 @@ export async function PATCH(
     const candidateId = params.id;
     const data = await request.json();
 
-    // 检查候选人是否存在
+    // 检查候选人是否存在（含 employee 记录，入职状态变更时需要）
     const existingCandidate = await prisma.candidate.findUnique({
       where: { id: candidateId },
+      include: { employeeRecord: true },
     });
 
     if (!existingCandidate) {
       return NextResponse.json({ error: '候选人不存在' }, { status: 404 });
     }
 
-    // 只允许更新部分字段
+    // 入职状态变更（试用期/正式入职）：同步 Employee 记录
+    if (data.status === 'PROBATION' || data.status === 'EMPLOYED') {
+      const department = data.department?.trim();
+      if (!department) {
+        return NextResponse.json({ error: '试用期或正式入职需要指定部门' }, { status: 400 });
+      }
+
+      const employeeStatus = data.status === 'EMPLOYED' ? 'REGULAR' : 'PROBATION';
+      const position = data.position?.trim() || existingCandidate.currentPosition || '待定';
+
+      const updatedCandidate = await prisma.$transaction(async (tx) => {
+        if (existingCandidate.employeeRecord) {
+          // 已有员工记录，更新部门和状态
+          await tx.employee.update({
+            where: { id: existingCandidate.employeeRecord.id },
+            data: {
+              department,
+              status: employeeStatus,
+              ...(data.position?.trim() ? { position: data.position.trim() } : {}),
+            },
+          });
+        } else {
+          // 新建员工记录
+          const hireDate = new Date();
+          const probationEndDate = new Date();
+          probationEndDate.setDate(probationEndDate.getDate() + 180);
+          await tx.employee.create({
+            data: {
+              candidateId,
+              employeeId: `EMP-${Date.now()}`,
+              department,
+              position,
+              hireDate,
+              probationEndDate,
+              status: employeeStatus,
+              currentScore: existingCandidate.totalScore ?? 0,
+            },
+          });
+        }
+
+        // 进入试用期时记录时间（用于仪表盘招聘周期统计）
+        const candidateUpdateData: Record<string, any> = { status: data.status };
+        if (data.status === 'PROBATION' && !existingCandidate.probationAt) {
+          candidateUpdateData.probationAt = new Date();
+        }
+
+        return tx.candidate.update({
+          where: { id: candidateId },
+          data: candidateUpdateData,
+          include: { tags: true, certificates: true },
+        });
+      });
+
+      return NextResponse.json(updatedCandidate);
+    }
+
+    // 常规字段更新
     const allowedFields = ['totalScore', 'aiEvaluation', 'status', 'recruiterId'];
     const updateData: Record<string, any> = {};
 

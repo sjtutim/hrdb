@@ -195,12 +195,6 @@ export default function EditJobPage({ params }: { params: { id: string } }) {
   const [error, setError] = useState<string | null>(null);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [aiGenerating, setAiGenerating] = useState(false);
-  const [showAiSuggestions, setShowAiSuggestions] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState<{
-    description?: string;
-    requirements?: string;
-  }>({});
 
   // 初始化表单
   const form = useForm<z.infer<typeof formSchema>>({
@@ -299,57 +293,6 @@ export default function EditJobPage({ params }: { params: { id: string } }) {
     const newTag = await response.json();
     setAvailableTags((prev) => [...prev, newTag]);
     setSelectedTags((prev) => [...prev, newTag.id]);
-  };
-
-  // 处理AI生成建议
-  const handleGenerateAiSuggestions = async () => {
-    const title = form.getValues('title');
-    const department = form.getValues('department');
-    
-    if (!title || !department) {
-      setError('请先填写职位名称和部门');
-      return;
-    }
-    
-    setAiGenerating(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/ai/job-suggestions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title,
-          department,
-          selectedTags: selectedTags.map(id => 
-            availableTags.find(tag => tag.id === id)?.name
-          ).filter(Boolean),
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('生成AI建议失败');
-      }
-      
-      const data = await response.json();
-      setAiSuggestions(data);
-      setShowAiSuggestions(true);
-    } catch (err) {
-      console.error('生成AI建议错误:', err);
-      setError(err instanceof Error ? err.message : '生成AI建议失败');
-    } finally {
-      setAiGenerating(false);
-    }
-  };
-
-  // 应用AI建议
-  const applyAiSuggestion = (field: 'description' | 'requirements') => {
-    if (aiSuggestions[field]) {
-      form.setValue(field, aiSuggestions[field] || '');
-      form.trigger(field);
-    }
   };
 
   // 表单提交处理
@@ -499,59 +442,6 @@ export default function EditJobPage({ params }: { params: { id: string } }) {
                 />
               ))}
             </div>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleGenerateAiSuggestions}
-                disabled={aiGenerating || !form.getValues('title') || !form.getValues('department')}
-                className={`px-4 py-2 rounded-md text-white ${
-                  aiGenerating || !form.getValues('title') || !form.getValues('department')
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-purple-600 hover:bg-purple-700'
-                }`}
-              >
-                {aiGenerating ? '生成中...' : '使用AI生成职位描述'}
-              </button>
-            </div>
-
-            {showAiSuggestions && (
-              <div className="bg-purple-50 p-4 rounded-md border border-purple-200">
-                <h3 className="text-lg font-medium text-purple-800 mb-2">
-                  AI生成的建议
-                </h3>
-                {aiSuggestions.description && (
-                  <div className="mb-4">
-                    <h4 className="font-medium text-purple-700 mb-1">岗位描述建议</h4>
-                    <p className="text-sm text-gray-700 mb-2">
-                      {aiSuggestions.description}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => applyAiSuggestion('description')}
-                      className="text-sm text-purple-700 hover:text-purple-900"
-                    >
-                      应用此建议
-                    </button>
-                  </div>
-                )}
-                {aiSuggestions.requirements && (
-                  <div>
-                    <h4 className="font-medium text-purple-700 mb-1">岗位要求建议</h4>
-                    <p className="text-sm text-gray-700 mb-2">
-                      {aiSuggestions.requirements}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => applyAiSuggestion('requirements')}
-                      className="text-sm text-purple-700 hover:text-purple-900"
-                    >
-                      应用此建议
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
 
             <FormField
               control={form.control}

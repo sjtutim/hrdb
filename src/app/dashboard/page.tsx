@@ -72,6 +72,7 @@ interface CandidateSummary {
   resumeContent: string | null;
   createdAt: string;
   updatedAt: string;
+  probationAt: string | null; // 进入试用期的时间，用于招聘周期统计
 }
 
 interface InterviewSummary {
@@ -434,22 +435,14 @@ export default function DashboardPage() {
 
     const activeJobs = jobPostings.filter((item) => item.status === 'ACTIVE').length;
 
-    const completedInterviewByCandidate = new Map<string, Date>();
-    interviews.forEach((item) => {
-      if (item.status !== 'COMPLETED' || !item.completedAt) return;
-      const completedAt = new Date(item.completedAt);
-      const prev = completedInterviewByCandidate.get(item.candidateId);
-      if (!prev || completedAt < prev) {
-        completedInterviewByCandidate.set(item.candidateId, completedAt);
-      }
-    });
-
-    const cycleDays = Array.from(completedInterviewByCandidate.entries())
-      .map(([candidateId, completedAt]) => {
-        const candidate = candidateMap.get(candidateId);
-        if (!candidate) return null;
-        const createdAt = new Date(candidate.createdAt);
-        const diff = Math.round((completedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    // 平均招聘周期：新建档案 → 进入试用期 的天数（依赖 probationAt 精确记录）
+    const cycleDays = candidates
+      .filter((c) => c.probationAt)
+      .map((c) => {
+        const diff = Math.round(
+          (new Date(c.probationAt!).getTime() - new Date(c.createdAt).getTime())
+          / (1000 * 60 * 60 * 24)
+        );
         return diff >= 0 ? diff : null;
       })
       .filter((val): val is number => val !== null);

@@ -55,6 +55,7 @@ model Candidate {
   aiProfile         String?         @db.Text // AI能力画像（缓存，匹配时复用）
   aiProfileUpdatedAt DateTime?               // 能力画像生成时间
   status            CandidateStatus @default(NEW)
+  probationAt       DateTime?                       // 进入试用期的时间，用于招聘周期统计
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   recruiterId       String?         // 关联的招聘人员
@@ -93,6 +94,7 @@ enum CandidateStatus {
   EMPLOYED         // 已正式入职
   REJECTED         // 已拒绝
   ARCHIVED         // 已归档
+  RESIGNED         // 已离职
 }
 
 // 标签模型
