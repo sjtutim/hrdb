@@ -7,6 +7,9 @@ RUN apt-get update \
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 FROM base AS deps
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 COPY package.json pnpm-lock.yaml .npmrc ./
 COPY prisma ./prisma
 RUN pnpm install --frozen-lockfile
