@@ -10,7 +10,26 @@ const POLL_INTERVAL_MS = 60 * 1000; // 每60秒检查一次
 const globalForScheduler = globalThis as unknown as {
   _parseSchedulerTimer?: ReturnType<typeof setInterval>;
   _parseSchedulerInitialized?: boolean;
+  _parseSchedulerLastDbNotReadyWarnAt?: number;
 };
+
+function isDbNotReadyError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes('database system is starting up') ||
+    msg.includes('the database system is starting up') ||
+    msg.includes('ECONNREFUSED')
+  );
+}
+
+function logDbNotReady(prefix: string): void {
+  const now = Date.now();
+  const last = globalForScheduler._parseSchedulerLastDbNotReadyWarnAt ?? 0;
+  if (now - last > 30_000) {
+    console.warn(`${prefix} 数据库尚未就绪，跳过本轮，稍后重试`);
+    globalForScheduler._parseSchedulerLastDbNotReadyWarnAt = now;
+  }
+}
 
 /** 检查并执行到期的延时解析任务 */
 async function checkAndRunScheduledParses(): Promise<void> {
@@ -26,10 +45,18 @@ async function checkAndRunScheduledParses(): Promise<void> {
 
     for (const task of pendingTasks) {
       executeScheduledParse(task.id).catch((err) => {
+        if (isDbNotReadyError(err)) {
+          logDbNotReady(`[延时解析] 执行任务 ${task.id} 出错:`);
+          return;
+        }
         console.error(`[延时解析] 执行任务 ${task.id} 出错:`, err);
       });
     }
   } catch (err) {
+    if (isDbNotReadyError(err)) {
+      logDbNotReady('[延时解析] 检查任务出错:');
+      return;
+    }
     console.error('[延时解析] 检查任务出错:', err);
   }
 }
@@ -58,6 +85,17 @@ async function executeScheduledParse(taskId: string): Promise<void> {
 
     console.log(`[延时解析] 任务 ${taskId} 完成，候选人: ${result.candidateId}`);
   } catch (error: any) {
+    if (isDbNotReadyError(error)) {
+      logDbNotReady(`[延时解析] 任务 ${taskId} 遇到瞬时数据库错误:`);
+      await prisma.scheduledParse
+        .update({
+          where: { id: taskId },
+          data: { status: 'PENDING' },
+        })
+        .catch(() => {});
+      return;
+    }
+
     console.error(`[延时解析] 任务 ${taskId} 失败:`, error);
     await prisma.scheduledParse.update({
       where: { id: taskId },
@@ -99,7 +137,13 @@ export function initParseScheduler(): void {
         console.log(`[延时解析] 重置了 ${r.count} 个因崩溃卡住的 RUNNING 任务`);
       }
     })
-    .catch((err) => console.error('[延时解析] 重置卡住任务出错:', err));
+    .catch((err) => {
+      if (isDbNotReadyError(err)) {
+        logDbNotReady('[延时解析] 重置卡住任务出错:');
+        return;
+      }
+      console.error('[延时解析] 重置卡住任务出错:', err);
+    });
 
   // 启动时立即检查一次
   checkAndRunScheduledParses();

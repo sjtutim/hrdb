@@ -10,7 +10,26 @@ const STUCK_TIMEOUT_MS = 10 * 60 * 1000; // 超过10分钟视为卡住
 const globalForScheduler = globalThis as unknown as {
   _aiGenSchedulerTimer?: ReturnType<typeof setInterval>;
   _aiGenSchedulerInitialized?: boolean;
+  _aiGenSchedulerLastDbNotReadyWarnAt?: number;
 };
+
+function isDbNotReadyError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes('database system is starting up') ||
+    msg.includes('the database system is starting up') ||
+    msg.includes('ECONNREFUSED')
+  );
+}
+
+function logDbNotReady(prefix: string): void {
+  const now = Date.now();
+  const last = globalForScheduler._aiGenSchedulerLastDbNotReadyWarnAt ?? 0;
+  if (now - last > 30_000) {
+    console.warn(`${prefix} 数据库尚未就绪，跳过本轮，稍后重试`);
+    globalForScheduler._aiGenSchedulerLastDbNotReadyWarnAt = now;
+  }
+}
 
 /** 执行单个 AI 生成任务（不依赖 SSE，直接调用 AI 接口） */
 async function executeAiGenTask(taskId: string): Promise<void> {
@@ -89,6 +108,17 @@ async function executeAiGenTask(taskId: string): Promise<void> {
 
     console.log(`[AI生成] 任务 ${taskId} 完成`);
   } catch (error: any) {
+    if (isDbNotReadyError(error)) {
+      logDbNotReady(`[AI生成] 任务 ${taskId} 遇到瞬时数据库错误:`);
+      await prisma.aiGenTask
+        .update({
+          where: { id: taskId },
+          data: { status: 'PENDING' },
+        })
+        .catch(() => {});
+      return;
+    }
+
     console.error(`[AI生成] 任务 ${taskId} 失败:`, error);
     await prisma.aiGenTask
       .update({
@@ -120,10 +150,18 @@ async function checkAndRunAiGenTasks(): Promise<void> {
 
     for (const task of pendingTasks) {
       executeAiGenTask(task.id).catch((err) => {
+        if (isDbNotReadyError(err)) {
+          logDbNotReady(`[AI生成] 执行任务 ${task.id} 出错:`);
+          return;
+        }
         console.error(`[AI生成] 执行任务 ${task.id} 出错:`, err);
       });
     }
   } catch (err) {
+    if (isDbNotReadyError(err)) {
+      logDbNotReady('[AI生成] 检查任务出错:');
+      return;
+    }
     console.error('[AI生成] 检查任务出错:', err);
   }
 }
