@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { formatBeijingDateTime, getNextBeijingTime } from '@/lib/beijing-time';
 
 const prisma = new PrismaClient();
-
-/** 计算下一个凌晨3点 */
-function getNext3AM(): Date {
-  const now = new Date();
-  const next = new Date(now);
-  next.setHours(3, 0, 0, 0);
-  if (next <= now) {
-    next.setDate(next.getDate() + 1);
-  }
-  return next;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     // immediate=true 时立即入队（scheduledFor=now），否则凌晨3点
-    const scheduledFor = immediate ? new Date() : getNext3AM();
+    const scheduledFor = immediate ? new Date() : getNextBeijingTime(3, 0);
 
     const records = await prisma.$transaction(
       files.map((f: { fileId: string; objectName: string; contentType: string; originalName: string }) =>
@@ -40,7 +30,7 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json({
-      message: `已加入队列，将在 ${scheduledFor.toLocaleString('zh-CN')} 自动解析`,
+      message: `已加入队列，将在 ${formatBeijingDateTime(scheduledFor)} 自动解析`,
       scheduledFor: scheduledFor.toISOString(),
       count: records.length,
       records,

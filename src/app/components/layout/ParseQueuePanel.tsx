@@ -17,6 +17,7 @@ import {
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
 import { cn } from '@/app/lib/utils';
+import { formatBeijingDateTime } from '@/lib/beijing-time';
 
 // ────────────────────────────────────────────────
 // 类型定义
@@ -217,7 +218,7 @@ export function QueuePanel() {
   // ── 工具函数 ──────────────────────────────────
 
   function fmtTime(iso: string) {
-    return new Date(iso).toLocaleString('zh-CN', {
+    return formatBeijingDateTime(iso, {
       month: 'numeric',
       day: 'numeric',
       hour: '2-digit',

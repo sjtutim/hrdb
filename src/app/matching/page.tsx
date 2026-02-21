@@ -44,6 +44,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/app/components/ui/dropdown-menu';
+import { formatBeijingDateTime } from '@/lib/beijing-time';
 
 interface JobPosting {
   id: string;
@@ -1022,7 +1023,7 @@ export default function MatchingPage() {
                         {task.totalCandidates} 位候选人
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        执行时间: {new Date(task.scheduledFor).toLocaleString('zh-CN')}
+                        执行时间: {formatBeijingDateTime(task.scheduledFor)}
                       </p>
                     </div>
                   </div>

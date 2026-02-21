@@ -8,6 +8,7 @@ import {
   runWithConcurrency,
   calculateTagMatchScore,
 } from './match-engine';
+import { getNextBeijingTime } from './beijing-time';
 
 const prisma = new PrismaClient();
 
@@ -21,16 +22,7 @@ const globalForScheduler = globalThis as unknown as {
 
 /** 计算下一个凌晨2点的时间 */
 export function getNext2AM(): Date {
-  const now = new Date();
-  const next = new Date(now);
-  next.setHours(2, 0, 0, 0);
-
-  // 如果当前时间已经过了今天凌晨2点，则设为明天凌晨2点
-  if (next <= now) {
-    next.setDate(next.getDate() + 1);
-  }
-
-  return next;
+  return getNextBeijingTime(2, 0);
 }
 
 /** 检查并执行到期的计划匹配任务 */
