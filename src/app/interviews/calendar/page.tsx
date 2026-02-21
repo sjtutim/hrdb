@@ -56,7 +56,7 @@ const interviewStatusMap = {
 // 自定义样式
 const customStyles = `
 .rbc-calendar {
-  min-height: 600px;
+  min-height: 800px;
 }
 .rbc-event {
   padding: 2px 5px;
@@ -313,12 +313,14 @@ export default function InterviewCalendarPage() {
       {/* 日历视图 */}
       <Card>
         <CardContent className="p-6">
-          <div className="h-[700px]">
+          <div className="h-[900px]">
             <Calendar
               localizer={localizer}
               events={interviews}
               startAccessor="start"
               endAccessor="end"
+              min={new Date(1970, 1, 1, 6, 0, 0)}
+              max={new Date(1970, 1, 1, 23, 59, 59)}
               style={{ height: '100%' }}
               views={{
                 week: true,

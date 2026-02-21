@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getToken } from 'next-auth/jwt';
 
 const prisma = new PrismaClient();
 
@@ -65,23 +64,12 @@ export async function GET(request: NextRequest) {
 // 创建新岗位
 export async function POST(request: NextRequest) {
   try {
-    // 获取当前登录用户
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
+    // 直接从 JWT cookie 读取 token，token.id 即为数据库用户 ID
+    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+    const userId = token?.id as string | undefined;
+    if (!userId) {
       return NextResponse.json(
         { error: '请先登录' },
-        { status: 401 }
-      );
-    }
-
-    // 根据邮箱查找用户
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: '用户不存在' },
         { status: 401 }
       );
     }
@@ -109,7 +97,7 @@ export async function POST(request: NextRequest) {
         requirements: data.requirements,
         status: data.status || 'DRAFT',
         expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
-        creatorId: user.id,
+        creatorId: userId,
         // 关联标签
         tags: {
           connect: tagIds.map((id: string) => ({ id })),

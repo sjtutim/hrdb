@@ -102,12 +102,11 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     fetchEmployees();
-  }, [statusFilter, departmentFilter]);
+  }, [departmentFilter]);
 
   const fetchEmployees = async () => {
     try {
       const params = new URLSearchParams();
-      if (statusFilter) params.append('status', statusFilter);
       if (departmentFilter) params.append('department', departmentFilter);
 
       const res = await fetch(`/api/employees?${params}`);
@@ -126,7 +125,6 @@ export default function EmployeesPage() {
     try {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
-      if (statusFilter) params.append('status', statusFilter);
       if (departmentFilter) params.append('department', departmentFilter);
 
       const res = await fetch(`/api/employees?${params}`);
@@ -186,7 +184,15 @@ export default function EmployeesPage() {
 
     // 默认隐藏离职员工；手动切到“已离职”时显示离职/解雇
     if (!statusFilter && isResigned) return false;
-    if (statusFilter === 'RESIGNED' && !isResigned) return false;
+
+    // 如果指定了具体状态，只显示该状态，但 RESIGNED 对应所有离职或解雇状态
+    if (statusFilter) {
+      if (statusFilter === 'RESIGNED') {
+        if (!isResigned) return false;
+      } else {
+        if (emp.status !== statusFilter) return false;
+      }
+    }
 
     if (!search) return true;
     const searchLower = search.toLowerCase();
@@ -241,7 +247,10 @@ export default function EmployeesPage() {
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
-        <Card>
+        <Card
+          className={`cursor-pointer transition-colors ${statusFilter === '' ? 'border-primary shadow-sm ring-1 ring-primary' : 'hover:border-primary/50'}`}
+          onClick={() => setStatusFilter('')}
+        >
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-lg bg-primary/10">
@@ -254,7 +263,10 @@ export default function EmployeesPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className={`cursor-pointer transition-colors ${statusFilter === 'PROBATION' ? 'border-amber-400 shadow-sm ring-1 ring-amber-400' : 'hover:border-amber-400/50'}`}
+          onClick={() => setStatusFilter(statusFilter === 'PROBATION' ? '' : 'PROBATION')}
+        >
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-lg bg-amber-100 dark:bg-amber-900/30">
@@ -267,7 +279,10 @@ export default function EmployeesPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className={`cursor-pointer transition-colors ${statusFilter === 'REGULAR' ? 'border-emerald-400 shadow-sm ring-1 ring-emerald-400' : 'hover:border-emerald-400/50'}`}
+          onClick={() => setStatusFilter(statusFilter === 'REGULAR' ? '' : 'REGULAR')}
+        >
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
@@ -281,7 +296,7 @@ export default function EmployeesPage() {
           </CardContent>
         </Card>
         <Card
-          className="cursor-pointer hover:border-slate-400 transition-colors"
+          className={`cursor-pointer transition-colors ${statusFilter === 'RESIGNED' ? 'border-slate-400 shadow-sm ring-1 ring-slate-400' : 'hover:border-slate-400/50'}`}
           onClick={() => setStatusFilter(statusFilter === 'RESIGNED' ? '' : 'RESIGNED')}
         >
           <CardContent className="p-6">

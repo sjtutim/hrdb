@@ -15,6 +15,12 @@ export async function GET(request: NextRequest) {
             scores: true,
           },
         },
+        employeeRecord: {
+          select: {
+            id: true,
+            status: true,
+          }
+        },
       },
       orderBy: {
         updatedAt: 'desc',
@@ -58,20 +64,9 @@ export async function POST(request: NextRequest) {
     const { name, email, phone, education, workExperience, currentPosition, currentCompany, status, tagIds, aiEvaluation } = body;
 
     // 验证必填字段
-    if (!name || !email) {
+    if (!name) {
       return NextResponse.json(
-        { error: '姓名和邮箱为必填项' },
-        { status: 400 }
-      );
-    }
-
-    // 检查邮箱唯一性
-    const existing = await prisma.candidate.findUnique({
-      where: { email },
-    });
-    if (existing) {
-      return NextResponse.json(
-        { error: '该邮箱已存在' },
+        { error: '姓名为必填项' },
         { status: 400 }
       );
     }
@@ -79,7 +74,7 @@ export async function POST(request: NextRequest) {
     const candidate = await prisma.candidate.create({
       data: {
         name,
-        email,
+        email: email || null,
         phone: phone || null,
         education: education || null,
         workExperience: workExperience || null,

@@ -11,13 +11,13 @@ import {
   Phone,
   Star,
   ArrowUpDown,
-  Download,
   User,
   BarChart3,
   Eye,
   Pencil,
   Calendar,
-  Trash2
+  Archive,
+  UserCheck
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -51,6 +51,7 @@ interface Candidate {
   status: string;
   tags: { id: string; name: string; category: string }[];
   lastUpdated: string;
+  employeeRecord?: any;
 }
 
 // 状态映射
@@ -85,7 +86,11 @@ function ScoreBadge({ score }: { score: number | null }) {
 }
 
 // 候选人表格行
-function CandidateRow({ candidate, onDelete }: { candidate: Candidate; onDelete: (id: string, name: string) => void }) {
+function CandidateRow({ candidate, onArchive, onOnboard }: {
+  candidate: Candidate;
+  onArchive: (id: string, name: string) => void;
+  onOnboard: (candidate: Candidate) => void;
+}) {
   const status = statusMap[candidate.status] || { label: candidate.status, className: 'bg-gray-100 text-gray-800' };
 
   return (
@@ -98,6 +103,11 @@ function CandidateRow({ candidate, onDelete }: { candidate: Candidate; onDelete:
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <p className="font-medium text-foreground">{candidate.name}</p>
+              {(candidate.employeeRecord || candidate.status === 'RESIGNED') && (
+                <span className="px-1.5 py-0.5 text-[10px] rounded bg-orange-50 text-orange-600 border border-orange-200 font-medium whitespace-nowrap">
+                  曾入职
+                </span>
+              )}
               {(candidate as any).interviewScore !== null && (candidate as any).interviewScore !== undefined && (
                 <span className="px-1.5 py-0.5 text-xs rounded bg-blue-100 text-blue-700 font-medium">
                   {(candidate as any).interviewScore?.toFixed(1)}
@@ -169,14 +179,25 @@ function CandidateRow({ candidate, onDelete }: { candidate: Candidate; onDelete:
               </Link>
             </Button>
           )}
+          {!['ARCHIVED', 'RESIGNED', 'REJECTED'].includes(candidate.status) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-emerald-600"
+              title="入职手续"
+              onClick={() => onOnboard(candidate)}
+            >
+              <UserCheck className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-destructive"
-            title="删除"
-            onClick={() => onDelete(candidate.id, candidate.name)}
+            title="归档"
+            onClick={() => onArchive(candidate.id, candidate.name)}
           >
-            <Trash2 className="h-4 w-4" />
+            <Archive className="h-4 w-4" />
           </Button>
         </div>
       </td>
@@ -208,11 +229,20 @@ export default function CandidatesPage() {
   const [tagStats, setTagStats] = useState<any[]>([]);
   const [tagStatsPeople, setTagStatsPeople] = useState(0);
   const [tagStatsLoading, setTagStatsLoading] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-  const [deleteNameInput, setDeleteNameInput] = useState('');
-  const [deleteNameError, setDeleteNameError] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: string; name: string } | null>(null);
+  const [archiveNameInput, setArchiveNameInput] = useState('');
+  const [archiveNameError, setArchiveNameError] = useState<string | null>(null);
+  const [isArchiving, setIsArchiving] = useState(false);
+
+  // 入职手续弹窗状态
+  const [onboardOpen, setOnboardOpen] = useState(false);
+  const [onboardTarget, setOnboardTarget] = useState<Candidate | null>(null);
+  const [onboardStatus, setOnboardStatus] = useState<string>('OFFERED');
+  const [onboardDept, setOnboardDept] = useState('');
+  const [onboardPosition, setOnboardPosition] = useState('');
+  const [onboardError, setOnboardError] = useState<string | null>(null);
+  const [isOnboarding, setIsOnboarding] = useState(false);
 
   // 获取标签统计数据
   const fetchTagStats = async () => {
@@ -241,7 +271,7 @@ export default function CandidatesPage() {
         }
         const data = await response.json();
         const visibleCandidates = (data as Candidate[]).filter(
-          (c) => !['PROBATION', 'EMPLOYED'].includes(c.status)
+          (c) => !['PROBATION', 'EMPLOYED', 'RESIGNED'].includes(c.status) && !c.employeeRecord
         );
         // 添加模拟的最后更新时间
         const dataWithDate = visibleCandidates.map((c: Candidate) => ({
@@ -260,50 +290,112 @@ export default function CandidatesPage() {
     fetchCandidates();
   }, []);
 
-  // 打开删除确认对话框
-  const handleDeleteClick = (id: string, name: string) => {
-    setDeleteTarget({ id, name });
-    setDeleteNameInput('');
-    setDeleteNameError(null);
-    setDeleteConfirmOpen(true);
+  // 打开入职手续对话框
+  const handleOnboardClick = (candidate: Candidate) => {
+    setOnboardTarget(candidate);
+    setOnboardStatus('OFFERED');
+    setOnboardDept('');
+    setOnboardPosition(candidate.currentPosition || '');
+    setOnboardError(null);
+    setOnboardOpen(true);
   };
 
-  // 确认删除候选人
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget) return;
+  // 确认入职状态更新
+  const handleConfirmOnboard = async () => {
+    if (!onboardTarget || !onboardStatus) return;
 
-    // 验证输入的姓名
-    if (deleteNameInput.trim() !== deleteTarget.name) {
-      setDeleteNameError(`请输入正确的姓名（${deleteTarget.name}）`);
+    if ((onboardStatus === 'PROBATION' || onboardStatus === 'EMPLOYED') && !onboardDept.trim()) {
+      setOnboardError('请填写入职部门');
       return;
     }
 
-    setIsDeleting(true);
+    setIsOnboarding(true);
+    setOnboardError(null);
 
     try {
-      const response = await fetch(`/api/candidates/${deleteTarget.id}`, {
-        method: 'DELETE',
+      const body: Record<string, string> = { status: onboardStatus };
+      if (onboardStatus === 'PROBATION' || onboardStatus === 'EMPLOYED') {
+        body.department = onboardDept.trim();
+        if (onboardPosition.trim()) body.position = onboardPosition.trim();
+      }
+
+      const response = await fetch(`/api/candidates/${onboardTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        throw new Error('删除候选人失败');
+        const err = await response.json();
+        throw new Error(err.error || '操作失败');
       }
 
-      // 删除成功，更新列表
-      setCandidates(candidates.filter(c => c.id !== deleteTarget.id));
-      setDeleteConfirmOpen(false);
-      setDeleteTarget(null);
+      // 同步更新本地列表
+      setCandidates(prev =>
+        prev.map(c => c.id === onboardTarget.id ? { ...c, status: onboardStatus } : c)
+      );
+      setOnboardOpen(false);
+      setOnboardTarget(null);
     } catch (err) {
-      console.error('删除候选人错误:', err);
-      alert(err instanceof Error ? err.message : '删除候选人失败');
+      setOnboardError(err instanceof Error ? err.message : '操作失败');
     } finally {
-      setIsDeleting(false);
+      setIsOnboarding(false);
+    }
+  };
+
+  // 打开归档确认对话框
+  const handleArchiveClick = (id: string, name: string) => {
+    setArchiveTarget({ id, name });
+    setArchiveNameInput('');
+    setArchiveNameError(null);
+    setArchiveConfirmOpen(true);
+  };
+
+  // 确认归档候选人
+  const handleConfirmArchive = async () => {
+    if (!archiveTarget) return;
+
+    // 验证输入的姓名
+    if (archiveNameInput.trim() !== archiveTarget.name) {
+      setArchiveNameError(`请输入正确的姓名（${archiveTarget.name}）`);
+      return;
+    }
+
+    setIsArchiving(true);
+
+    try {
+      const response = await fetch(`/api/candidates/${archiveTarget.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'ARCHIVED' }),
+      });
+
+      if (!response.ok) {
+        throw new Error('归档候选人失败');
+      }
+
+      // 归档成功，更新列表
+      setCandidates(candidates.map(c =>
+        c.id === archiveTarget.id ? { ...c, status: 'ARCHIVED' } : c
+      ));
+      setArchiveConfirmOpen(false);
+      setArchiveTarget(null);
+    } catch (err) {
+      console.error('归档候选人错误:', err);
+      alert(err instanceof Error ? err.message : '归档候选人失败');
+    } finally {
+      setIsArchiving(false);
     }
   };
 
   // 过滤和排序候选人
   const filteredCandidates = candidates
     .filter((candidate) => {
+      if (statusFilter === 'ALL' && candidate.status === 'ARCHIVED') {
+        return false;
+      }
       if (statusFilter !== 'ALL' && candidate.status !== statusFilter) {
         return false;
       }
@@ -344,7 +436,7 @@ export default function CandidatesPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">候选人档案</h1>
           <p className="text-muted-foreground mt-1">
-            共 {candidates.length} 位候选人，管理您的人才库
+            共 {candidates.filter(c => c.status !== 'ARCHIVED').length} 位活跃候选人，管理您的人才库
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -360,10 +452,6 @@ export default function CandidatesPage() {
           >
             <BarChart3 className={`h-4 w-4 mr-2 ${showTagCloud ? 'text-white' : ''}`} />
             候选人群像
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            导出
           </Button>
           <Button size="sm" asChild>
             <Link href="/resume-upload">
@@ -382,7 +470,7 @@ export default function CandidatesPage() {
           onClick={() => setStatusFilter('ALL')}
         >
           全部
-          <span className="relative -top-2 ml-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-medium leading-none">{candidates.length}</span>
+          <span className="relative -top-2 ml-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-medium leading-none">{candidates.filter(c => c.status !== 'ARCHIVED').length}</span>
         </Button>
         {Object.entries(statusMap).map(([key, { label }]) => {
           const count = statusCounts[key] || 0;
@@ -492,7 +580,7 @@ export default function CandidatesPage() {
                 </thead>
                 <tbody>
                   {filteredCandidates.map((candidate) => (
-                    <CandidateRow key={candidate.id} candidate={candidate} onDelete={handleDeleteClick} />
+                    <CandidateRow key={candidate.id} candidate={candidate} onArchive={handleArchiveClick} onOnboard={handleOnboardClick} />
                   ))}
                 </tbody>
               </table>
@@ -518,44 +606,111 @@ export default function CandidatesPage() {
         </div>
       )}
 
-      {/* 删除确认弹窗 */}
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      {/* 入职手续弹窗 */}
+      <Dialog open={onboardOpen} onOpenChange={setOnboardOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>确认删除候选人</DialogTitle>
+            <DialogTitle>入职手续 — {onboardTarget?.name}</DialogTitle>
+            <DialogDescription>
+              修改候选人入职状态，选择试用期或正式入职时需指定入职部门。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* 状态选择 */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">入职状态</label>
+              <Select value={onboardStatus} onValueChange={(v) => { setOnboardStatus(v); setOnboardError(null); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="OFFERED">已发 Offer</SelectItem>
+                  <SelectItem value="PROBATION">试用期</SelectItem>
+                  <SelectItem value="EMPLOYED">正式入职</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 部门（试用期/正式入职时必填） */}
+            {(onboardStatus === 'PROBATION' || onboardStatus === 'EMPLOYED') && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    入职部门 <span className="text-destructive">*</span>
+                  </label>
+                  <Input
+                    placeholder="请输入部门名称，如：技术部、市场部"
+                    value={onboardDept}
+                    onChange={(e) => { setOnboardDept(e.target.value); setOnboardError(null); }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">入职职位</label>
+                  <Input
+                    placeholder="请输入职位名称（选填）"
+                    value={onboardPosition}
+                    onChange={(e) => setOnboardPosition(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            {onboardError && (
+              <p className="text-sm text-destructive">{onboardError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOnboardOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={handleConfirmOnboard}
+              disabled={isOnboarding || !onboardStatus}
+            >
+              {isOnboarding ? '保存中...' : '确认'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 归档确认弹窗 */}
+      <Dialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认归档候选人</DialogTitle>
             <DialogDescription className="space-y-2">
-              <p>此操作不可恢复，删除后将清除该候选人的所有信息。</p>
+              <p>归档后，候选人将移至归档状态，您仍然可以随时查看其信息。</p>
               <p className="font-medium">
-                请输入候选人姓名 <span className="text-primary">"{deleteTarget?.name}"</span> 确认删除：
+                请输入候选人姓名 <span className="text-primary">"{archiveTarget?.name}"</span> 确认归档：
               </p>
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
             <input
               type="text"
-              value={deleteNameInput}
+              value={archiveNameInput}
               onChange={(e) => {
-                setDeleteNameInput(e.target.value);
-                setDeleteNameError(null);
+                setArchiveNameInput(e.target.value);
+                setArchiveNameError(null);
               }}
-              placeholder={`请输入 "${deleteTarget?.name}"`}
+              placeholder={`请输入 "${archiveTarget?.name}"`}
               className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               autoFocus
             />
-            {deleteNameError && (
-              <p className="text-sm text-destructive mt-2">{deleteNameError}</p>
+            {archiveNameError && (
+              <p className="text-sm text-destructive mt-2">{archiveNameError}</p>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+            <Button variant="outline" onClick={() => setArchiveConfirmOpen(false)}>
               取消
             </Button>
             <Button
               variant="destructive"
-              onClick={handleConfirmDelete}
-              disabled={isDeleting || !deleteNameInput.trim()}
+              onClick={handleConfirmArchive}
+              disabled={isArchiving || !archiveNameInput.trim()}
             >
-              {isDeleting ? '删除中...' : '确认删除'}
+              {isArchiving ? '归档中...' : '确认归档'}
             </Button>
           </DialogFooter>
         </DialogContent>

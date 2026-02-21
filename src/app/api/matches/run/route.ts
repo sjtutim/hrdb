@@ -95,11 +95,22 @@ export async function POST(request: NextRequest) {
     });
     const candidates = allCandidates.filter(c => !matchedCandidateIds.has(c.id));
 
-    // 创建任务记录
+    // 创建任务记录（内存 + 数据库，确保队列管理可见）
     createTask(jobPostingId, candidates.length);
 
+    const scheduledRecord = await prisma.scheduledMatch.create({
+      data: {
+        jobPostingId,
+        candidateIds: candidates.map(c => c.id),
+        scheduledFor: new Date(),
+        status: 'RUNNING',
+        totalCandidates: candidates.length,
+        processedCount: 0,
+      },
+    });
+
     // 后台执行匹配（不 await）
-    runMatchingInBackground(jobPostingId, targetJob, candidates);
+    runMatchingInBackground(jobPostingId, targetJob, candidates, scheduledRecord.id);
 
     return NextResponse.json({
       taskId: jobPostingId,
@@ -117,7 +128,12 @@ export async function POST(request: NextRequest) {
 }
 
 // 后台执行匹配逻辑（并发控制）
-async function runMatchingInBackground(jobPostingId: string, targetJob: any, candidates: any[]) {
+async function runMatchingInBackground(
+  jobPostingId: string,
+  targetJob: any,
+  candidates: any[],
+  scheduledMatchId: string
+) {
   let processedCount = 0;
 
   try {
@@ -166,6 +182,12 @@ async function runMatchingInBackground(jobPostingId: string, targetJob: any, can
       updateTask(jobPostingId, {
         processed: processedCount,
       });
+
+      // 同步更新数据库中的队列进度
+      await prisma.scheduledMatch.update({
+        where: { id: scheduledMatchId },
+        data: { processedCount },
+      });
     }, 3); // 并发数 3
 
     // 获取最终匹配结果
@@ -179,8 +201,20 @@ async function runMatchingInBackground(jobPostingId: string, targetJob: any, can
     });
 
     completeTask(jobPostingId, finalMatches);
+
+    // 标记队列任务完成
+    await prisma.scheduledMatch.update({
+      where: { id: scheduledMatchId },
+      data: { status: 'COMPLETED', processedCount },
+    });
   } catch (error: any) {
     console.error('后台匹配任务失败:', error);
     failTask(jobPostingId, error.message || '匹配过程中发生错误');
+
+    // 标记队列任务失败
+    await prisma.scheduledMatch.update({
+      where: { id: scheduledMatchId },
+      data: { status: 'FAILED', error: error.message || '匹配过程中发生错误' },
+    });
   }
 }

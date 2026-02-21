@@ -157,6 +157,9 @@
   .status-archived {
     @apply bg-slate-50 text-slate-700 ring-1 ring-slate-600/20 dark:bg-slate-400/10 dark:text-slate-400 dark:ring-slate-400/30;
   }
+  .status-resigned {
+    @apply bg-zinc-100 text-zinc-700 ring-1 ring-zinc-600/20 dark:bg-zinc-800/30 dark:text-zinc-400 dark:ring-zinc-400/30;
+  }
   
   /* 面试状态 */
   .status-scheduled {

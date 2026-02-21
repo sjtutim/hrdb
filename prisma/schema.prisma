@@ -40,7 +40,7 @@ model User {
 model Candidate {
   id                String          @id @default(uuid())
   name              String
-  email             String          @unique
+  email             String?         // 移除 @unique，允许为空
   phone             String?
   education         String?         @db.Text // 教育背景（文本描述）
   workExperience    String?         @db.Text // 工作经验（文本描述）
@@ -55,6 +55,7 @@ model Candidate {
   aiProfile         String?         @db.Text // AI能力画像（缓存，匹配时复用）
   aiProfileUpdatedAt DateTime?               // 能力画像生成时间
   status            CandidateStatus @default(NEW)
+  probationAt       DateTime?                       // 进入试用期的时间，用于招聘周期统计
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   recruiterId       String?         // 关联的招聘人员
@@ -65,6 +66,9 @@ model Candidate {
   interviews        Interview[]     // 面试记录
   evaluations       Evaluation[]    // 评估记录
   employeeRecord    Employee?       // 如果成为员工，关联的员工记录
+
+  // 姓名+文件名唯一索引，用于简历去重
+  @@unique([name, resumeFileName], name: "name_resumeFileName")
 }
 
 // 证书/技能文件模型
@@ -90,6 +94,7 @@ enum CandidateStatus {
   EMPLOYED         // 已正式入职
   REJECTED         // 已拒绝
   ARCHIVED         // 已归档
+  RESIGNED         // 已离职
 }
 
 // 标签模型
@@ -358,6 +363,27 @@ model ScheduledParse {
 }
 
 enum ScheduledParseStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+// AI 生成任务模型（职位描述/要求生成，支持失败重试）
+model AiGenTask {
+  id           String      @id @default(uuid())
+  title        String      // 职位名称
+  department   String      // 部门
+  tags         String[]    // 标签列表
+  status       AiGenStatus @default(PENDING)
+  description  String?     @db.Text  // 生成的岗位描述
+  requirements String?     @db.Text  // 生成的岗位要求
+  error        String?     @db.Text  // 失败时的错误信息
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+enum AiGenStatus {
   PENDING
   RUNNING
   COMPLETED

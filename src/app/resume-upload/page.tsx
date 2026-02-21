@@ -187,6 +187,8 @@ export default function ResumeUpload() {
   }, [processing]);
 
   // -- batch process --
+  // Phase 1: 上传所有文件并全部入队（确保离开页面后任务不丢失）
+  // Phase 2: 逐个执行 SSE 解析
   const handleBatchUpload = async () => {
     const pending = tasks.filter((t) => t.status === 'pending' || t.status === 'error');
     if (pending.length === 0) return;
@@ -201,6 +203,9 @@ export default function ResumeUpload() {
         t.status === 'error' ? { ...t, status: 'pending' as const, error: undefined, progress: 0, progressText: '' } : t,
       ),
     );
+
+    // Phase 1: 上传所有文件并批量入队
+    const queueMap = new Map<string, string>(); // taskId -> queueTaskId
 
     for (const task of pending) {
       if (abortRef.current) break;
@@ -220,8 +225,8 @@ export default function ResumeUpload() {
         if (!uploadResponse.ok) throw new Error('文件上传失败');
         const uploadData = await uploadResponse.json();
 
-        // 2. 入队：创建 ScheduledParse 记录（immediate=true 立即执行）
-        updateTask(task.id, { status: 'parsing', progress: 15, progressText: '正在加入解析队列...' });
+        // 2. 入队：创建 ScheduledParse 记录（immediate=true）
+        updateTask(task.id, { status: 'parsing', progress: 10, progressText: '已入队，等待解析...' });
 
         const scheduleRes = await fetch('/api/resume/schedule-parse', {
           method: 'POST',
@@ -238,12 +243,30 @@ export default function ResumeUpload() {
         });
         if (!scheduleRes.ok) throw new Error('创建解析任务失败');
         const scheduleData = await scheduleRes.json();
-        const queueTaskId = scheduleData.records[0].id;
+        queueMap.set(task.id, scheduleData.records[0].id);
+      } catch (err) {
+        updateTask(task.id, {
+          status: 'error',
+          progress: 0,
+          progressText: '',
+          error: err instanceof Error ? err.message : '上传过程中出错',
+        });
+      }
+    }
 
-        // 通知 QueuePanel 刷新（任务已入队，离开页面后仍可追踪）
-        window.dispatchEvent(new Event('queue:updated'));
+    // 所有文件已入队，通知 QueuePanel 刷新（此时离开页面任务也不会丢失）
+    if (queueMap.size > 0) {
+      window.dispatchEvent(new Event('queue:updated'));
+    }
 
-        // 3. 立即执行并通过 SSE 获取实时进度
+    // Phase 2: 逐个执行 SSE 解析
+    for (const task of pending) {
+      if (abortRef.current) break;
+
+      const queueTaskId = queueMap.get(task.id);
+      if (!queueTaskId) continue; // 上传失败的跳过
+
+      try {
         updateTask(task.id, { progress: 20, progressText: '正在解析简历...' });
 
         const parseResponse = await fetch(`/api/resume/parse-queue/${queueTaskId}`, {
@@ -268,7 +291,7 @@ export default function ResumeUpload() {
           status: 'error',
           progress: 0,
           progressText: '',
-          error: err instanceof Error ? err.message : '上传或解析过程中出错',
+          error: err instanceof Error ? err.message : '解析过程中出错',
         });
       }
     }
