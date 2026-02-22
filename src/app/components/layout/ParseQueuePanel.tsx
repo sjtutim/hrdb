@@ -70,17 +70,6 @@ export function QueuePanel() {
   const [matchAction, setMatchAction] = useState<Record<string, 'run' | 'cancel' | null>>({});
   const [aiGenAction, setAiGenAction] = useState<Record<string, 'retry' | 'delete' | null>>({});
 
-  const handleCleanTimeout = useCallback(async () => {
-    try {
-      const res = await fetch('/api/queue/clean', { method: 'POST' });
-      if (res.ok) {
-        await fetchQueue();
-      }
-    } catch {
-      /* silent */
-    }
-  }, [fetchQueue]);
-
   // ── 数据获取 ──────────────────────────────────
 
   const fetchQueue = useCallback(async () => {
@@ -109,6 +98,17 @@ export function QueuePanel() {
       setLoading(false);
     }
   }, []);
+
+  const handleCleanTimeout = useCallback(async () => {
+    try {
+      const res = await fetch('/api/queue/clean', { method: 'POST' });
+      if (res.ok) {
+        await fetchQueue();
+      }
+    } catch {
+      /* silent */
+    }
+  }, [fetchQueue]);
 
   useEffect(() => {
     fetchQueue();
