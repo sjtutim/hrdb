@@ -19,9 +19,9 @@ export async function DELETE(
       return NextResponse.json({ error: '任务不存在' }, { status: 404 });
     }
 
-    if (task.status !== 'PENDING') {
+    if (!['PENDING', 'RUNNING', 'FAILED'].includes(task.status)) {
       return NextResponse.json(
-        { error: '只能取消待执行的任务' },
+        { error: '该状态下无法取消/删除' },
         { status: 400 }
       );
     }

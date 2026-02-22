@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { cleanupStuckScheduledParses } from '@/lib/scheduled-parse-cleanup';
 
 const prisma = new PrismaClient();
 
 export async function GET() {
   try {
+    const resetCount = await cleanupStuckScheduledParses(prisma);
+    if (resetCount > 0) {
+      console.log(`[解析队列] 自动清理了 ${resetCount} 个超时 RUNNING 任务`);
+    }
+
     const tasks = await prisma.scheduledParse.findMany({
       where: {
         status: { in: ['PENDING', 'RUNNING'] },

@@ -13,6 +13,7 @@ import {
   Sparkles,
   X,
   RefreshCw,
+  Eraser,
 } from 'lucide-react';
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
@@ -67,7 +68,18 @@ export function QueuePanel() {
   const [loading, setLoading] = useState(false);
   const [parseAction, setParseAction] = useState<Record<string, 'run' | 'delete' | null>>({});
   const [matchAction, setMatchAction] = useState<Record<string, 'run' | 'cancel' | null>>({});
-  const [aiGenAction, setAiGenAction] = useState<Record<string, 'retry' | 'delete' | null>>({});;
+  const [aiGenAction, setAiGenAction] = useState<Record<string, 'retry' | 'delete' | null>>({});
+
+  const handleCleanTimeout = useCallback(async () => {
+    try {
+      const res = await fetch('/api/queue/clean', { method: 'POST' });
+      if (res.ok) {
+        await fetchQueue();
+      }
+    } catch {
+      /* silent */
+    }
+  }, [fetchQueue]);
 
   // ── 数据获取 ──────────────────────────────────
 
@@ -264,14 +276,25 @@ export function QueuePanel() {
               <Layers className="h-4 w-4 text-blue-500" />
               <span className="text-sm font-semibold">队列管理</span>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              onClick={() => setOpen(false)}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                title="一键清理超时卡死任务 (>5分钟)"
+                onClick={handleCleanTimeout}
+              >
+                <Eraser className="h-3.5 w-3.5 text-orange-400" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={() => setOpen(false)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
 
           {/* Tabs */}
@@ -333,28 +356,27 @@ export function QueuePanel() {
                         </p>
                       </div>
                       <div className="shrink-0 flex items-center gap-1">
-                        {task.status === 'RUNNING' ? (
-                          <Badge className="text-[10px] px-1.5 py-0 bg-blue-500">解析中</Badge>
-                        ) : (
-                          <>
-                            <ActionButton
-                              icon={<Play className="h-3.5 w-3.5" />}
-                              loading={parseAction[task.id] === 'run'}
-                              disabled={acting}
-                              title="立即执行"
-                              onClick={() => handleParseRun(task.id)}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
-                            />
-                            <ActionButton
-                              icon={<Trash2 className="h-3.5 w-3.5" />}
-                              loading={parseAction[task.id] === 'delete'}
-                              disabled={acting}
-                              title="删除任务"
-                              onClick={() => handleParseDelete(task.id)}
-                              className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                            />
-                          </>
+                        {task.status === 'RUNNING' && (
+                          <Badge className="text-[10px] px-1.5 py-0 bg-blue-500 mr-1">解析中</Badge>
                         )}
+                        {task.status === 'PENDING' && (
+                          <ActionButton
+                            icon={<Play className="h-3.5 w-3.5" />}
+                            loading={parseAction[task.id] === 'run'}
+                            disabled={acting}
+                            title="立即执行"
+                            onClick={() => handleParseRun(task.id)}
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                          />
+                        )}
+                        <ActionButton
+                          icon={<Trash2 className="h-3.5 w-3.5" />}
+                          loading={parseAction[task.id] === 'delete'}
+                          disabled={acting}
+                          title={task.status === 'RUNNING' ? "强制删除" : "删除任务"}
+                          onClick={() => handleParseDelete(task.id)}
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        />
                       </div>
                     </div>
                   );
@@ -430,31 +452,29 @@ export function QueuePanel() {
 
                       <div className="shrink-0 flex items-center gap-1 mt-0.5">
                         {task.status === 'PENDING' && (
-                          <>
-                            <ActionButton
-                              icon={<Play className="h-3.5 w-3.5" />}
-                              loading={matchAction[task.id] === 'run'}
-                              disabled={acting}
-                              title="立即执行"
-                              onClick={() => handleMatchRun(task.id)}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
-                            />
-                            <ActionButton
-                              icon={<X className="h-3.5 w-3.5" />}
-                              loading={matchAction[task.id] === 'cancel'}
-                              disabled={acting}
-                              title="取消任务"
-                              onClick={() => handleMatchCancel(task.id)}
-                              className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                            />
-                          </>
+                          <ActionButton
+                            icon={<Play className="h-3.5 w-3.5" />}
+                            loading={matchAction[task.id] === 'run'}
+                            disabled={acting}
+                            title="立即执行"
+                            onClick={() => handleMatchRun(task.id)}
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                          />
                         )}
                         {task.status === 'RUNNING' && (
-                          <Badge className="text-[10px] px-1.5 py-0 bg-blue-500">匹配中</Badge>
+                          <Badge className="text-[10px] px-1.5 py-0 bg-blue-500 mr-1">匹配中</Badge>
                         )}
                         {task.status === 'FAILED' && (
-                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">失败</Badge>
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 mr-1">失败</Badge>
                         )}
+                        <ActionButton
+                          icon={<X className="h-3.5 w-3.5" />}
+                          loading={matchAction[task.id] === 'cancel'}
+                          disabled={acting}
+                          title={task.status === 'RUNNING' ? '强制取消' : '取消/删除'}
+                          onClick={() => handleMatchCancel(task.id)}
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        />
                       </div>
                     </div>
                   );
@@ -508,38 +528,26 @@ export function QueuePanel() {
 
                       <div className="shrink-0 flex items-center gap-1 mt-0.5">
                         {task.status === 'FAILED' && (
-                          <>
-                            <ActionButton
-                              icon={<RefreshCw className="h-3.5 w-3.5" />}
-                              loading={aiGenAction[task.id] === 'retry'}
-                              disabled={acting}
-                              title="重试"
-                              onClick={() => handleAiGenRetry(task.id)}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
-                            />
-                            <ActionButton
-                              icon={<Trash2 className="h-3.5 w-3.5" />}
-                              loading={aiGenAction[task.id] === 'delete'}
-                              disabled={acting}
-                              title="删除任务"
-                              onClick={() => handleAiGenDelete(task.id)}
-                              className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                            />
-                          </>
-                        )}
-                        {task.status === 'RUNNING' && (
-                          <Badge className="text-[10px] px-1.5 py-0 bg-blue-500">生成中</Badge>
-                        )}
-                        {task.status === 'PENDING' && (
                           <ActionButton
-                            icon={<Trash2 className="h-3.5 w-3.5" />}
-                            loading={aiGenAction[task.id] === 'delete'}
+                            icon={<RefreshCw className="h-3.5 w-3.5" />}
+                            loading={aiGenAction[task.id] === 'retry'}
                             disabled={acting}
-                            title="删除任务"
-                            onClick={() => handleAiGenDelete(task.id)}
-                            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            title="重试"
+                            onClick={() => handleAiGenRetry(task.id)}
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
                           />
                         )}
+                        {task.status === 'RUNNING' && (
+                          <Badge className="text-[10px] px-1.5 py-0 bg-blue-500 mr-1">生成中</Badge>
+                        )}
+                        <ActionButton
+                          icon={<Trash2 className="h-3.5 w-3.5" />}
+                          loading={aiGenAction[task.id] === 'delete'}
+                          disabled={acting}
+                          title={task.status === 'RUNNING' ? '强制删除' : '删除任务'}
+                          onClick={() => handleAiGenDelete(task.id)}
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        />
                       </div>
                     </div>
                   );
@@ -554,8 +562,8 @@ export function QueuePanel() {
               {tab === 'parse'
                 ? '解析中任务离开页面后仍将继续'
                 : tab === 'match'
-                ? '凌晨 2:00 自动匹配'
-                : '失败任务可重试，生成完成后可在职位页面查看'}{' '}
+                  ? '凌晨 2:00 自动匹配'
+                  : '失败任务可重试，生成完成后可在职位页面查看'}{' '}
               · 每 30 秒刷新
             </p>
           </div>

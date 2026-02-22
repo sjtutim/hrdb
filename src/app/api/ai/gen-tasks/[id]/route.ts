@@ -11,9 +11,6 @@ export async function DELETE(
 ) {
   const task = await prisma.aiGenTask.findUnique({ where: { id: params.id } });
   if (!task) return NextResponse.json({ error: '任务不存在' }, { status: 404 });
-  if (task.status === 'RUNNING') {
-    return NextResponse.json({ error: '任务正在执行中，无法删除' }, { status: 409 });
-  }
   await prisma.aiGenTask.delete({ where: { id: params.id } });
   return NextResponse.json({ message: '已删除' });
 }
@@ -111,7 +108,7 @@ export async function POST(
         await prisma.aiGenTask.update({
           where: { id: task.id },
           data: { status: 'FAILED', error: errMsg },
-        }).catch(() => {});
+        }).catch(() => { });
         send('error', { error: errMsg, taskId: task.id });
       } finally {
         if (!closed) { closed = true; controller.close(); }

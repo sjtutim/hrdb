@@ -16,9 +16,6 @@ export async function DELETE(
     if (!task) {
       return NextResponse.json({ error: '任务不存在' }, { status: 404 });
     }
-    if (task.status === 'RUNNING') {
-      return NextResponse.json({ error: '任务正在执行中，无法删除' }, { status: 409 });
-    }
     await prisma.scheduledParse.delete({ where: { id } });
     return NextResponse.json({ message: '已删除' });
   } catch (error) {

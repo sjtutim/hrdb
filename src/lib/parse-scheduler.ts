@@ -2,6 +2,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { parseResumeFromStorage } from './resume-parse-core';
+import { cleanupStuckScheduledParses } from './scheduled-parse-cleanup';
 
 const prisma = new PrismaClient();
 
@@ -34,6 +35,11 @@ function logDbNotReady(prefix: string): void {
 /** 检查并执行到期的延时解析任务 */
 async function checkAndRunScheduledParses(): Promise<void> {
   try {
+    const resetCount = await cleanupStuckScheduledParses(prisma);
+    if (resetCount > 0) {
+      console.log(`[延时解析] 自动清理了 ${resetCount} 个超时 RUNNING 任务`);
+    }
+
     const now = new Date();
 
     const pendingTasks = await prisma.scheduledParse.findMany({
@@ -124,26 +130,6 @@ export function initParseScheduler(): void {
     POLL_INTERVAL_MS
   );
   globalForScheduler._parseSchedulerInitialized = true;
-
-  // 启动时：重置因进程崩溃卡在 RUNNING 状态超过1小时的任务
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  prisma.scheduledParse
-    .updateMany({
-      where: { status: 'RUNNING', updatedAt: { lte: oneHourAgo } },
-      data: { status: 'PENDING' },
-    })
-    .then((r) => {
-      if (r.count > 0) {
-        console.log(`[延时解析] 重置了 ${r.count} 个因崩溃卡住的 RUNNING 任务`);
-      }
-    })
-    .catch((err) => {
-      if (isDbNotReadyError(err)) {
-        logDbNotReady('[延时解析] 重置卡住任务出错:');
-        return;
-      }
-      console.error('[延时解析] 重置卡住任务出错:', err);
-    });
 
   // 启动时立即检查一次
   checkAndRunScheduledParses();
