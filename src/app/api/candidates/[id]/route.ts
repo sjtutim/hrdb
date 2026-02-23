@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { deleteFile, BUCKET_NAME } from '@/lib/minio';
 
 const prisma = new PrismaClient();
 
@@ -115,6 +116,7 @@ export async function PUT(
       where: {
         id: candidateId,
       },
+      include: { employeeRecord: true },
     });
 
     if (!existingCandidate) {
@@ -136,6 +138,7 @@ export async function PUT(
         workExperience: data.workExperience !== undefined ? data.workExperience : existingCandidate.workExperience,
         currentPosition: data.currentPosition !== undefined ? data.currentPosition : existingCandidate.currentPosition,
         currentCompany: data.currentCompany !== undefined ? data.currentCompany : existingCandidate.currentCompany,
+        department: data.department !== undefined ? data.department : existingCandidate.department,
         resumeUrl: data.resumeUrl !== undefined ? data.resumeUrl : existingCandidate.resumeUrl,
         resumeFileName: data.resumeFileName !== undefined ? data.resumeFileName : (existingCandidate as any).resumeFileName,
         resumeContent: data.resumeContent !== undefined ? data.resumeContent : existingCandidate.resumeContent,
@@ -150,6 +153,14 @@ export async function PUT(
         certificates: true,
       },
     });
+
+    // 如果候选人已有员工记录且部门有变更，同步更新 Employee.department
+    if (data.department !== undefined && existingCandidate.employeeRecord) {
+      await prisma.employee.update({
+        where: { id: existingCandidate.employeeRecord.id },
+        data: { department: data.department || existingCandidate.employeeRecord.department },
+      });
+    }
 
     // 更新标签
     if (data.tagIds && Array.isArray(data.tagIds)) {
@@ -186,6 +197,14 @@ export async function DELETE(
       where: {
         id: candidateId,
       },
+      include: {
+        certificates: true,
+        employeeRecord: {
+          include: {
+            performanceReviews: true,
+          }
+        }
+      }
     });
 
     if (!candidate) {
@@ -193,6 +212,45 @@ export async function DELETE(
         { error: '候选人不存在' },
         { status: 404 }
       );
+    }
+
+    // 收集所有关联的 MinIO 文件信息以便删除
+    const filesToDelete: string[] = [];
+
+    // 1. 收集简历文件
+    if (candidate.resumeUrl) {
+      filesToDelete.push(candidate.resumeUrl);
+    }
+
+    // 2. 收集证书文件
+    if (candidate.certificates) {
+      for (const cert of candidate.certificates) {
+        if (cert.fileUrl) filesToDelete.push(cert.fileUrl);
+      }
+    }
+
+    // 3. 收集业绩考核附件（如果存在）
+    if (candidate.employeeRecord?.performanceReviews) {
+      for (const review of candidate.employeeRecord.performanceReviews) {
+        if (review.attachmentUrl) filesToDelete.push(review.attachmentUrl);
+      }
+    }
+
+    // 执行 MinIO 文件删除
+    for (const fileUrl of filesToDelete) {
+      try {
+        let objectName = fileUrl;
+        const bucketMarker = `/${BUCKET_NAME}/`;
+        if (fileUrl.includes(bucketMarker)) {
+          const splitParts = fileUrl.split(bucketMarker);
+          if (splitParts.length > 1) {
+            objectName = splitParts.slice(1).join(bucketMarker);
+          }
+        }
+        await deleteFile(objectName);
+      } catch (err) {
+        console.error('删除 MinIO 文件失败:', fileUrl, err);
+      }
     }
 
     // 在事务中按依赖顺序删除关联数据，再删除候选人

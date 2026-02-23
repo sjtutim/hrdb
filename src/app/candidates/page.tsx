@@ -47,6 +47,7 @@ interface Candidate {
   phone: string | null;
   currentPosition: string | null;
   currentCompany: string | null;
+  department: string | null;
   totalScore: number | null;
   status: string;
   tags: { id: string; name: string; category: string }[];
@@ -132,6 +133,14 @@ function CandidateRow({ candidate, onArchive, onOnboard }: {
         ) : (
           <span className="text-sm text-muted-foreground">-</span>
         )}
+      </td>
+      <td className="px-4 py-4">
+        {(() => {
+          const dept = candidate.employeeRecord?.department || candidate.department;
+          return dept
+            ? <span className="text-sm text-foreground">{dept}</span>
+            : <span className="text-sm text-muted-foreground">-</span>;
+        })()}
       </td>
       <td className="px-4 py-4">
         <div className="flex flex-wrap gap-1">
@@ -223,6 +232,8 @@ export default function CandidatesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [departments, setDepartments] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'score' | 'date'>('date');
   const [showTagCloud, setShowTagCloud] = useState(false);
@@ -279,6 +290,13 @@ export default function CandidatesPage() {
           lastUpdated: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
         }));
         setCandidates(dataWithDate);
+
+        // 获取部门列表（用于筛选）
+        const deptResponse = await fetch('/api/employees?limit=1');
+        if (deptResponse.ok) {
+          const deptData = await deptResponse.json();
+          setDepartments(deptData.departments || []);
+        }
       } catch (err) {
         console.error('获取候选人列表错误:', err);
         setError(err instanceof Error ? err.message : '获取候选人列表失败');
@@ -305,7 +323,7 @@ export default function CandidatesPage() {
     if (!onboardTarget || !onboardStatus) return;
 
     if ((onboardStatus === 'PROBATION' || onboardStatus === 'EMPLOYED') && !onboardDept.trim()) {
-      setOnboardError('请填写入职部门');
+      setOnboardError('请填写当前职位');
       return;
     }
 
@@ -399,13 +417,22 @@ export default function CandidatesPage() {
       if (statusFilter !== 'ALL' && candidate.status !== statusFilter) {
         return false;
       }
+      // 部门筛选
+      if (departmentFilter) {
+        const candidateDept = candidate.employeeRecord?.department || candidate.department || '';
+        if (candidateDept !== departmentFilter) {
+          return false;
+        }
+      }
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
+        const candidateDept = candidate.employeeRecord?.department || candidate.department || '';
         return (
           candidate.name.toLowerCase().includes(searchLower) ||
           candidate.email.toLowerCase().includes(searchLower) ||
           (candidate.currentPosition && candidate.currentPosition.toLowerCase().includes(searchLower)) ||
           (candidate.currentCompany && candidate.currentCompany.toLowerCase().includes(searchLower)) ||
+          candidateDept.toLowerCase().includes(searchLower) ||
           candidate.tags.some(tag => tag.name.toLowerCase().includes(searchLower))
         );
       }
@@ -496,13 +523,24 @@ export default function CandidatesPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="搜索姓名、邮箱、职位、公司或标签..."
+                placeholder="搜索姓名、邮箱、职位、公司、部门或标签..."
                 className="pl-9"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <div className="flex gap-3">
+              <Select value={departmentFilter || "all"} onValueChange={(v) => setDepartmentFilter(v === "all" ? "" : v)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="全部部门" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部部门</SelectItem>
+                  {departments.map(dept => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
                 <SelectTrigger className="w-[140px]">
                   <ArrowUpDown className="h-4 w-4 mr-2" />
@@ -571,6 +609,7 @@ export default function CandidatesPage() {
                   <tr>
                     <th>候选人</th>
                     <th>当前职位</th>
+                    <th>部门</th>
                     <th>标签</th>
                     <th>评分</th>
                     <th>状态</th>
@@ -612,7 +651,7 @@ export default function CandidatesPage() {
           <DialogHeader>
             <DialogTitle>入职手续 — {onboardTarget?.name}</DialogTitle>
             <DialogDescription>
-              修改候选人入职状态，选择试用期或正式入职时需指定入职部门。
+              修改候选人入职状态，选择试用期或正式入职时需指定当前职位。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -636,7 +675,7 @@ export default function CandidatesPage() {
               <>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">
-                    入职部门 <span className="text-destructive">*</span>
+                    当前职位 <span className="text-destructive">*</span>
                   </label>
                   <Input
                     placeholder="请输入部门名称，如：技术部、市场部"

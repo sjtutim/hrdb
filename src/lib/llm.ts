@@ -159,7 +159,7 @@ const SYSTEM_PROMPT = `你是一个专业的HR简历解析助手。
   "education": "整洁的教育背景，无重复",
   "workExperience": "整洁的工作经历，无重复",
   "currentPosition": "当前职位",
-  "currentCompany": "当前公司",
+  "currentCompany": "上一供职单位",
   "initialScore": 85,
   "aiEvaluation": "AI综合评价",
   "tags": [{"name": "标签名", "category": "类别"}]

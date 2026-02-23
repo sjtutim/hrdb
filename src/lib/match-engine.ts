@@ -168,7 +168,7 @@ function buildCandidateInfo(candidate: any): string {
 ## 基本信息
 - 姓名: ${candidate.name}
 - 当前职位: ${candidate.currentPosition || '未填写'}
-- 当前公司: ${candidate.currentCompany || '未填写'}
+- 上一供职单位: ${candidate.currentCompany || '未填写'}
 - 教育背景: ${candidate.education || '未填写'}
 - 工作经验: ${candidate.workExperience || '未填写'}
 

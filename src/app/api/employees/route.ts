@@ -50,6 +50,7 @@ export async function GET(request: Request) {
             education: true,
             currentPosition: true,
             currentCompany: true,
+            department: true,
             totalScore: true,
             initialScore: true,
           },
@@ -95,6 +96,10 @@ export async function GET(request: Request) {
       ];
     }
 
+    if (department) {
+      candidateWhere.department = department;
+    }
+
     const orphanCandidates = await prisma.candidate.findMany({
       where: candidateWhere,
       select: {
@@ -102,6 +107,7 @@ export async function GET(request: Request) {
         name: true,
         email: true,
         phone: true,
+        department: true,
         education: true,
         currentPosition: true,
         currentCompany: true,
@@ -123,7 +129,7 @@ export async function GET(request: Request) {
         id: `virtual-${c.id}`,
         candidateId: c.id,
         employeeId: '-',
-        department: '-',
+        department: c.department || '-',
         position: c.currentPosition || '-',
         hireDate: c.createdAt,
         probationEndDate: c.createdAt,
@@ -139,22 +145,44 @@ export async function GET(request: Request) {
           education: c.education,
           currentPosition: c.currentPosition,
           currentCompany: c.currentCompany,
+          department: c.department,
         },
       }));
 
     const allEmployees = [...employeesWithCalculatedScore, ...virtualEmployees];
 
-    // 获取部门列表
-    const departments = await prisma.employee.findMany({
+    // 获取部门列表（合并 Employee 和 Candidate 的部门，过滤掉"-"和空值）
+    const employeeDepartments = await prisma.employee.findMany({
+      where: {
+        department: { not: '-' },
+      },
       select: {
         department: true,
       },
       distinct: ['department'],
     });
 
+    const candidateDepartments = await prisma.candidate.findMany({
+      where: {
+        department: { not: null },
+        status: { in: ['ONBOARDING', 'PROBATION', 'EMPLOYED', 'ARCHIVED'] },
+      },
+      select: {
+        department: true,
+      },
+      distinct: ['department'],
+    });
+
+    const allDepartments = [
+      ...new Set([
+        ...employeeDepartments.map(d => d.department),
+        ...candidateDepartments.map(d => d.department!),
+      ]),
+    ].filter(d => d && d !== '-').sort();
+
     return NextResponse.json({
       employees: allEmployees,
-      departments: departments.map(d => d.department).filter(Boolean),
+      departments: allDepartments,
     });
   } catch (error) {
     console.error('获取员工列表失败:', error);

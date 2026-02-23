@@ -55,6 +55,7 @@ interface Candidate {
   workExperience: string | null;
   currentPosition: string | null;
   currentCompany: string | null;
+  department: string | null;
   resumeUrl: string | null;
   resumeFileName: string | null;
   resumeContent: string | null;
@@ -273,22 +274,20 @@ function PerformanceReviewCard({
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">{review.type}</Badge>
                     {review.level && (
-                      <Badge className={`text-xs ${
-                        review.level === 'A' ? 'bg-emerald-100 text-emerald-800' :
+                      <Badge className={`text-xs ${review.level === 'A' ? 'bg-emerald-100 text-emerald-800' :
                         review.level === 'B' ? 'bg-blue-100 text-blue-800' :
-                        review.level === 'C' ? 'bg-amber-100 text-amber-800' :
-                        review.level === 'D' ? 'bg-orange-100 text-orange-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
+                          review.level === 'C' ? 'bg-amber-100 text-amber-800' :
+                            review.level === 'D' ? 'bg-orange-100 text-orange-800' :
+                              'bg-red-100 text-red-800'
+                        }`}>
                         {review.level}
                       </Badge>
                     )}
                   </div>
-                  <span className={`font-bold ${
-                    review.score >= 90 ? 'text-emerald-600' :
+                  <span className={`font-bold ${review.score >= 90 ? 'text-emerald-600' :
                     review.score >= 70 ? 'text-amber-600' :
-                    'text-red-600'
-                  }`}>
+                      'text-red-600'
+                    }`}>
                     {review.score}
                   </span>
                 </div>
@@ -565,12 +564,10 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
     return (
       <div className="container py-8">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/candidates">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
+          <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
+            <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-2xl font-bold">候选人详情</h1>
+          <h1 className="text-2xl font-bold">详情</h1>
         </div>
         <Card>
           <CardContent className="p-8 text-center">
@@ -586,18 +583,16 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
     return (
       <div className="container py-8">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/candidates">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
+          <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
+            <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-2xl font-bold">候选人详情</h1>
+          <h1 className="text-2xl font-bold">详情</h1>
         </div>
         <Card>
           <CardContent className="p-8 text-center">
             <p className="text-destructive">{error || '候选人不存在'}</p>
-            <Button className="mt-4" asChild>
-              <Link href="/candidates">返回候选人列表</Link>
+            <Button className="mt-4" onClick={() => window.history.back()}>
+              返回列表
             </Button>
           </CardContent>
         </Card>
@@ -607,13 +602,17 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
 
   const status = statusMap[candidate.status] || { label: candidate.status, className: 'bg-gray-100 text-gray-800' };
 
+  // 判断是否为员工（有员工记录或状态为入职相关）
+  const isEmployee = !!candidate.employeeRecord || ['ONBOARDING', 'PROBATION', 'EMPLOYED'].includes(candidate.status);
+  const backUrl = isEmployee ? '/employees' : '/candidates';
+
   return (
     <div className="container py-8 space-y-6">
       {/* 页面头部 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/candidates">
+            <Link href={backUrl}>
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -775,8 +774,15 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
                 <div className="flex items-center gap-3">
                   <Building className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">当前公司</p>
+                    <p className="text-sm text-muted-foreground">上一供职单位</p>
                     <p className="font-medium">{candidate.currentCompany || '-'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Building className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">部门</p>
+                    <p className="font-medium">{candidate.employeeRecord?.department || candidate.department || '-'}</p>
                   </div>
                 </div>
               </div>
@@ -971,13 +977,12 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
                           </span>
                           {interview.decision && (
                             <span
-                              className={`text-xs px-1.5 py-0.5 rounded-full ${
-                                interview.decision === 'PASS'
-                                  ? 'bg-green-100 text-green-800'
-                                  : interview.decision === 'FAIL'
+                              className={`text-xs px-1.5 py-0.5 rounded-full ${interview.decision === 'PASS'
+                                ? 'bg-green-100 text-green-800'
+                                : interview.decision === 'FAIL'
                                   ? 'bg-red-100 text-red-800'
                                   : 'bg-yellow-100 text-yellow-800'
-                              }`}
+                                }`}
                             >
                               {decisionMap[interview.decision] || interview.decision}
                             </span>

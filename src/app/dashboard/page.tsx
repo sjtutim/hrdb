@@ -451,10 +451,14 @@ export default function DashboardPage() {
       ? Math.round(cycleDays.reduce((sum, day) => sum + day, 0) / cycleDays.length)
       : null;
 
+    const availableCandidatesCount = candidates.filter(
+      (c) => c.status !== 'PROBATION' && c.status !== 'EMPLOYED' && c.status !== 'ONBOARDING'
+    ).length;
+
     const computedStats: StatItem[] = [
       {
         title: '候选人总数',
-        value: String(candidates.length),
+        value: String(availableCandidatesCount),
         icon: Users,
         color: 'blue',
         href: '/candidates',

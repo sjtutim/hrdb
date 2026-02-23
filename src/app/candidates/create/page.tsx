@@ -250,10 +250,10 @@ export default function CreateCandidatePage() {
                 name="currentCompany"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>当前公司</FormLabel>
+                    <FormLabel>上一供职单位</FormLabel>
                     <FormControl>
                       <input
-                        placeholder="请输入当前公司"
+                        placeholder="请输入上一供职单位"
                         className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:text-white"
                         {...field}
                       />
@@ -332,11 +332,10 @@ export default function CreateCandidatePage() {
                           key={tag.id}
                           type="button"
                           onClick={() => handleTagToggle(tag.id)}
-                          className={`px-2 py-0.5 rounded-full text-xs ${
-                            selectedTags.includes(tag.id)
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
+                          className={`px-2 py-0.5 rounded-full text-xs ${selectedTags.includes(tag.id)
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                            }`}
                         >
                           {tag.name}
                         </button>
@@ -364,9 +363,8 @@ export default function CreateCandidatePage() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`px-4 py-2 rounded-md text-white ${
-                  loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+                className={`px-4 py-2 rounded-md text-white ${loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
               >
                 {loading ? '提交中...' : '添加候选人'}
               </button>

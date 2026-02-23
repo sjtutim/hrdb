@@ -54,6 +54,7 @@ interface Employee {
     education?: string;
     currentPosition?: string;
     currentCompany?: string;
+    department?: string;
   };
 }
 
@@ -83,10 +84,15 @@ export default function EmployeesPage() {
   const [resignSubmitting, setResignSubmitting] = useState(false);
 
   // 获取标签统计数据
-  const fetchTagStats = async () => {
+  const fetchTagStats = async (department?: string) => {
     try {
       setTagStatsLoading(true);
-      const response = await fetch('/api/tags/stats?scope=employees');
+      const params = new URLSearchParams();
+      params.append('scope', 'employees');
+      if (department) {
+        params.append('department', department);
+      }
+      const response = await fetch(`/api/tags/stats?${params}`);
       if (!response.ok) {
         throw new Error('获取标签统计失败');
       }
@@ -225,9 +231,13 @@ export default function EmployeesPage() {
             variant="outline"
             className="gap-2"
             onClick={() => {
+              if (!departmentFilter) {
+                alert('请先选择部门');
+                return;
+              }
               setShowTagCloud(!showTagCloud);
-              if (!showTagCloud && tagStats.length === 0) {
-                fetchTagStats();
+              if (!showTagCloud) {
+                fetchTagStats(departmentFilter);
               }
             }}
           >
@@ -413,10 +423,17 @@ export default function EmployeesPage() {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                        <span className="flex items-center gap-1">
-                          <Building className="h-3 w-3" />
-                          {employee.department}
-                        </span>
+                        {(() => {
+                          const dept = (employee.department && employee.department !== '-')
+                            ? employee.department
+                            : employee.candidate.department;
+                          return (
+                            <span className="flex items-center gap-1">
+                              <Building className="h-3 w-3" />
+                              {dept || '-'}
+                            </span>
+                          );
+                        })()}
                         <span>{employee.position}</span>
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />

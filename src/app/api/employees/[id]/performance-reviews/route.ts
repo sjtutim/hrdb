@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
-import { uploadFile, getFileUrl, BUCKET_NAME } from '@/lib/minio';
+import { uploadFile, getFileUrl, BUCKET_NAME, fileExists, deleteFile } from '@/lib/minio';
 
 const prisma = new PrismaClient();
 
@@ -163,11 +162,17 @@ export async function POST(
       }
 
       try {
-        const fileId = uuidv4();
         const originalName = file.name || `attachment${ext}`;
-        const objectName = `hrdb/performance/${fileId}${ext}`;
-        const buffer = Buffer.from(await file.arrayBuffer());
+        const objectName = `hrdb/performance/${originalName}`;
 
+        // 检查MinIO中是否已存在该文件（使用原始文件名）
+        const exists = await fileExists(objectName);
+        if (exists) {
+          // MinIO中已存在，直接覆盖（删除旧文件后上传新文件）
+          await deleteFile(objectName);
+        }
+
+        const buffer = Buffer.from(await file.arrayBuffer());
         attachmentUrl = await uploadFile(buffer, objectName, resolvedType || 'application/octet-stream');
         attachmentName = originalName;
       } catch (uploadError) {

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(claude-hud:configure)",
+      "mcp__ide__getDiagnostics",
+      "Bash(pnpm prisma:*)",
+      "Bash(psql $DATABASE_URL:*)",
+      "Bash(source:*)",
+      "Bash(PGPASSWORD=112233Ab psql:*)"
+    ]
+  }
+}

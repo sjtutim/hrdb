@@ -48,4 +48,13 @@ export async function deleteFile(objectName: string): Promise<void> {
   await minioClient.removeObject(BUCKET_NAME, objectName);
 }
 
+export async function fileExists(objectName: string): Promise<boolean> {
+  try {
+    await minioClient.statObject(BUCKET_NAME, objectName);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 export { minioClient, BUCKET_NAME };

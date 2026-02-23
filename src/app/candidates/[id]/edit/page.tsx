@@ -24,6 +24,7 @@ const formSchema = z.object({
   workExperience: z.string().optional(),
   currentPosition: z.string().optional(),
   currentCompany: z.string().optional(),
+  department: z.string().optional(),
   aiEvaluation: z.string().optional(),
   status: z.enum(['NEW', 'SCREENING', 'TALENT_POOL', 'INTERVIEWING', 'OFFERED', 'ONBOARDING', 'PROBATION', 'EMPLOYED', 'REJECTED', 'ARCHIVED']),
 });
@@ -43,6 +44,7 @@ interface Candidate {
   workExperience: string | null;
   currentPosition: string | null;
   currentCompany: string | null;
+  department: string | null;
   aiEvaluation: string | null;
   resumeUrl: string | null;
   resumeFileName: string | null;
@@ -76,6 +78,7 @@ export default function EditCandidatePage() {
       workExperience: '',
       currentPosition: '',
       currentCompany: '',
+      department: '',
       aiEvaluation: '',
       status: 'NEW',
     },
@@ -109,6 +112,7 @@ export default function EditCandidatePage() {
           workExperience: candidateData.workExperience || '',
           currentPosition: candidateData.currentPosition || '',
           currentCompany: candidateData.currentCompany || '',
+          department: candidateData.department || '',
           aiEvaluation: candidateData.aiEvaluation || '',
           status: candidateData.status as any,
         });
@@ -398,10 +402,10 @@ export default function EditCandidatePage() {
                 name="currentCompany"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>当前公司</FormLabel>
+                    <FormLabel>上一供职单位</FormLabel>
                     <FormControl>
                       <input
-                        placeholder="请输入当前公司"
+                        placeholder="请输入上一供职单位"
                         className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:text-white"
                         {...field}
                       />
@@ -409,6 +413,28 @@ export default function EditCandidatePage() {
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+
+              <FormField
+                control={form.control}
+                name="department"
+                render={({ field }) => {
+                  const status = form.watch('status');
+                  const isOnboarded = status === 'PROBATION' || status === 'EMPLOYED';
+                  return (
+                    <FormItem>
+                      <FormLabel>{isOnboarded ? '入职部门' : '意向部门'}</FormLabel>
+                      <FormControl>
+                        <input
+                          placeholder={isOnboarded ? '请输入入职部门' : '请输入意向部门'}
+                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:text-white"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
             </div>
 
@@ -527,11 +553,10 @@ export default function EditCandidatePage() {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading || deleting}
-                  className={`px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-md text-sm ${
-                    uploading || deleting
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer'
-                  }`}
+                  className={`px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-md text-sm ${uploading || deleting
+                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer'
+                    }`}
                 >
                   {uploading ? (
                     <span className="flex items-center gap-2">
@@ -567,11 +592,10 @@ export default function EditCandidatePage() {
                           key={tag.id}
                           type="button"
                           onClick={() => handleTagToggle(tag.id)}
-                          className={`px-2 py-0.5 rounded-full text-xs ${
-                            selectedTags.includes(tag.id)
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
+                          className={`px-2 py-0.5 rounded-full text-xs ${selectedTags.includes(tag.id)
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                            }`}
                         >
                           {tag.name}
                         </button>
@@ -599,9 +623,8 @@ export default function EditCandidatePage() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`px-4 py-2 rounded-md text-white ${
-                  loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+                className={`px-4 py-2 rounded-md text-white ${loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
               >
                 {loading ? '保存中...' : '保存修改'}
               </button>

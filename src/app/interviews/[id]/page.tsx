@@ -138,7 +138,7 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
   // 获取决定显示名称
   const getDecisionDisplayName = (decision: string | null) => {
     if (!decision) return '未决定';
-    
+
     const decisionMap: Record<string, string> = {
       PASS: '通过',
       FAIL: '不通过',
@@ -150,7 +150,7 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
   // 获取决定标签颜色
   const getDecisionColor = (decision: string | null) => {
     if (!decision) return 'bg-gray-100 text-gray-800';
-    
+
     const colorMap: Record<string, string> = {
       PASS: 'bg-green-100 text-green-800',
       FAIL: 'bg-red-100 text-red-800',
@@ -512,7 +512,7 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
               )}
               {interview.candidate.currentCompany && (
                 <p className="mb-2">
-                  <span className="font-medium">当前公司:</span> {interview.candidate.currentCompany}
+                  <span className="font-medium">上一供职单位:</span> {interview.candidate.currentCompany}
                 </p>
               )}
               {interview.candidate.tags && interview.candidate.tags.length > 0 && (
@@ -685,12 +685,11 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
                             <span className="text-sm text-muted-foreground">的评分</span>
                           </div>
                           {avgScore !== null && (
-                            <span className={`px-2 py-1 rounded-full text-sm font-medium ${
-                              avgScore >= 4 ? 'bg-green-100 text-green-800' :
+                            <span className={`px-2 py-1 rounded-full text-sm font-medium ${avgScore >= 4 ? 'bg-green-100 text-green-800' :
                               avgScore >= 3 ? 'bg-blue-100 text-blue-800' :
-                              avgScore >= 2 ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
+                                avgScore >= 2 ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-red-100 text-red-800'
+                              }`}>
                               平均: {avgScore.toFixed(1)}
                             </span>
                           )}
@@ -700,12 +699,11 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
                             <div key={score.id} className="border-b border-gray-200 pb-2 last:border-0">
                               <div className="flex justify-between items-center mb-1">
                                 <span className="text-sm">{score.category}</span>
-                                <span className={`px-2 py-0.5 rounded-full text-xs ${
-                                  score.score >= 4 ? 'bg-green-100 text-green-800' :
+                                <span className={`px-2 py-0.5 rounded-full text-xs ${score.score >= 4 ? 'bg-green-100 text-green-800' :
                                   score.score >= 3 ? 'bg-blue-100 text-blue-800' :
-                                  score.score >= 2 ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-red-100 text-red-800'
-                                }`}>
+                                    score.score >= 2 ? 'bg-yellow-100 text-yellow-800' :
+                                      'bg-red-100 text-red-800'
+                                  }`}>
                                   {score.score.toFixed(1)}
                                 </span>
                               </div>
@@ -750,11 +748,10 @@ export default function InterviewDetailPage({ params }: { params: { id: string }
                           <button
                             key={value}
                             type="button"
-                            className={`w-8 h-8 rounded-full mx-0.5 flex items-center justify-center text-sm ${
-                              item.score === value
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                            }`}
+                            className={`w-8 h-8 rounded-full mx-0.5 flex items-center justify-center text-sm ${item.score === value
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
                             onClick={() => {
                               const newForm = [...scoreForm];
                               newForm[index].score = value;
