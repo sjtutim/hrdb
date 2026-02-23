@@ -152,11 +152,11 @@ const Navbar = () => {
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="navbar-logo flex items-center gap-2.5 group">
               <div className="navbar-logo-icon h-9 w-9 rounded-xl overflow-hidden flex items-center justify-center">
-                <img src="/logo.png" alt="顿慧人才库" width={36} height={36} className="object-cover" />
+                <img src="/logo.png" alt="本地化公司人才库" width={36} height={36} className="object-cover" />
               </div>
               <div className="flex flex-col">
                 <span className="font-semibold text-base hidden sm:inline text-white/95 tracking-tight leading-tight">
-                  顿慧人才库
+                  本地化公司人才库
                 </span>
                 <span className="text-[10px] text-white/40 hidden lg:block leading-tight">AI驱动的人才管理平台</span>
               </div>

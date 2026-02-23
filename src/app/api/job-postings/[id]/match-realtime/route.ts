@@ -32,7 +32,7 @@ export async function POST(
     }
 
     if (source === 'employee') {
-      // 从顿慧人才库（员工）匹配
+      // 从本地化公司人才库（员工）匹配
       const employees = await prisma.employee.findMany({
         include: {
           candidate: {
