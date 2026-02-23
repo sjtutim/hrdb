@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-公司人才库 (Inno HeroBase) - An AI-powered HR talent management system for resume parsing, candidate tracking, job matching, and interview scheduling.
+顿慧人才库 (Inno HeroBase) - An AI-powered HR talent management system for resume parsing, candidate tracking, job matching, and interview scheduling.
 
 ## Tech Stack
 
