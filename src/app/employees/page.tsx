@@ -84,14 +84,19 @@ export default function EmployeesPage() {
   const [resignSubmitting, setResignSubmitting] = useState(false);
 
   // 获取标签统计数据
-  const fetchTagStats = async (department?: string) => {
+  const fetchTagStats = async (department?: string, status?: string) => {
+    // 离职员工无需统计标签
+    if (status === 'RESIGNED') {
+      setTagStats([]);
+      setTagStatsPeople(0);
+      return;
+    }
     try {
       setTagStatsLoading(true);
       const params = new URLSearchParams();
       params.append('scope', 'employees');
-      if (department) {
-        params.append('department', department);
-      }
+      if (department) params.append('department', department);
+      if (status) params.append('status', status);
       const response = await fetch(`/api/tags/stats?${params}`);
       if (!response.ok) {
         throw new Error('获取标签统计失败');
@@ -109,6 +114,13 @@ export default function EmployeesPage() {
   useEffect(() => {
     fetchEmployees();
   }, [departmentFilter]);
+
+  // 筛选条件变化时自动刷新标签统计
+  useEffect(() => {
+    if (showTagCloud) {
+      fetchTagStats(departmentFilter, statusFilter);
+    }
+  }, [departmentFilter, statusFilter, showTagCloud]);
 
   const fetchEmployees = async () => {
     try {
@@ -230,16 +242,7 @@ export default function EmployeesPage() {
           <Button
             variant="outline"
             className="gap-2"
-            onClick={() => {
-              if (!departmentFilter) {
-                alert('请先选择部门');
-                return;
-              }
-              setShowTagCloud(!showTagCloud);
-              if (!showTagCloud) {
-                fetchTagStats(departmentFilter);
-              }
-            }}
+            onClick={() => setShowTagCloud(!showTagCloud)}
           >
             <BarChart3 className="h-4 w-4" />
             员工群像
@@ -332,8 +335,18 @@ export default function EmployeesPage() {
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 <p className="ml-2 text-muted-foreground">加载中...</p>
               </div>
+            ) : statusFilter === 'RESIGNED' ? (
+              <p className="text-center text-muted-foreground py-8">离职员工暂不统计标签群像</p>
             ) : tagStats.length > 0 ? (
-              <TagCloudStats data={tagStats} totalPeople={tagStatsPeople} title="人才库标签统计" />
+              <TagCloudStats
+                data={tagStats}
+                totalPeople={tagStatsPeople}
+                title={[
+                  departmentFilter ? `${departmentFilter}` : '',
+                  statusFilter === 'PROBATION' ? '试用期' : statusFilter === 'REGULAR' ? '正式员工' : '',
+                  '员工群像',
+                ].filter(Boolean).join(' · ')}
+              />
             ) : (
               <p className="text-center text-muted-foreground py-8">暂无标签数据</p>
             )}

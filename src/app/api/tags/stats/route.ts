@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
   try {
     const scope = request.nextUrl.searchParams.get('scope');
     const department = request.nextUrl.searchParams.get('department');
+    // status: 员工状态 PROBATION | REGULAR，对应候选人状态 PROBATION | EMPLOYED
+    const status = request.nextUrl.searchParams.get('status');
 
     // 根据 scope 构建候选人状态过滤条件
     // scope=employees: 人才库（试用期+已正式入职）
@@ -19,22 +21,30 @@ export async function GET(request: NextRequest) {
     //   - EMPLOYED: 已正式入职
     // scope=candidates: 候选人库（排除人才库和已拒绝）
     let candidateFilter: Record<string, unknown> | undefined;
-    let employeeFilter: Record<string, unknown> | undefined;
 
     if (scope === 'employees') {
-      // 查找 PROBATION（试用期）或 EMPLOYED（已正式入职）的候选人
-      candidateFilter = { status: { in: ['PROBATION', 'EMPLOYED'] } };
-      // 添加部门过滤条件（通过 Employee 表过滤）
-      if (department) {
-        employeeFilter = { department };
-        // 先获取该部门的员工ID列表（排除"-"部门）
-        const employees = await prisma.employee.findMany({
-          where: { department, department: { not: '-' } },
-          select: { candidateId: true },
-        });
-        const candidateIds = employees.map(e => e.candidateId);
-        candidateFilter = { ...candidateFilter, id: { in: candidateIds } };
-      }
+      // 以 Employee 表为准，不依赖 candidate.status（避免状态不同步问题）
+      const statusCondition =
+        status === 'PROBATION' ? { status: 'PROBATION' } :
+        status === 'REGULAR'   ? { status: 'REGULAR' }   :
+        { status: { notIn: ['RESIGNED', 'TERMINATED'] } };
+
+      // 部门过滤：employee.department 优先，若为 '-'/'' 则 fallback 到 candidate.department
+      const departmentCondition = department
+        ? {
+            OR: [
+              { department: department },
+              { department: { in: ['-', ''] }, candidate: { department: department } },
+            ],
+          }
+        : {};
+
+      const matchedEmployees = await prisma.employee.findMany({
+        where: { AND: [statusCondition, departmentCondition] },
+        select: { candidateId: true },
+      });
+      const candidateIds = matchedEmployees.map(e => e.candidateId);
+      candidateFilter = { id: { in: candidateIds } };
     } else if (scope === 'candidates') {
       // 排除 PROBATION、EMPLOYED 和 REJECTED（已拒绝）状态
       candidateFilter = { status: { notIn: ['PROBATION', 'EMPLOYED', 'REJECTED'] } };
