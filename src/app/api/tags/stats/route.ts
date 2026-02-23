@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, TagCategory } from '@prisma/client';
+import { CandidateStatus, EmployeeStatus, Prisma, PrismaClient, TagCategory } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -20,17 +20,17 @@ export async function GET(request: NextRequest) {
     //   - PROBATION: 试用期
     //   - EMPLOYED: 已正式入职
     // scope=candidates: 候选人库（排除人才库和已拒绝）
-    let candidateFilter: Record<string, unknown> | undefined;
+    let candidateFilter: Prisma.CandidateWhereInput | undefined;
 
     if (scope === 'employees') {
       // 以 Employee 表为准，不依赖 candidate.status（避免状态不同步问题）
-      const statusCondition =
-        status === 'PROBATION' ? { status: 'PROBATION' } :
-        status === 'REGULAR'   ? { status: 'REGULAR' }   :
-        { status: { notIn: ['RESIGNED', 'TERMINATED'] } };
+      const statusCondition: Prisma.EmployeeWhereInput =
+        status === 'PROBATION' ? { status: EmployeeStatus.PROBATION } :
+        status === 'REGULAR'   ? { status: EmployeeStatus.REGULAR }   :
+        { status: { notIn: [EmployeeStatus.RESIGNED, EmployeeStatus.TERMINATED] } };
 
       // 部门过滤：employee.department 优先，若为 '-'/'' 则 fallback 到 candidate.department
-      const departmentCondition = department
+      const departmentCondition: Prisma.EmployeeWhereInput = department
         ? {
             OR: [
               { department: department },
@@ -47,7 +47,9 @@ export async function GET(request: NextRequest) {
       candidateFilter = { id: { in: candidateIds } };
     } else if (scope === 'candidates') {
       // 排除 PROBATION、EMPLOYED 和 REJECTED（已拒绝）状态
-      candidateFilter = { status: { notIn: ['PROBATION', 'EMPLOYED', 'REJECTED'] } };
+      candidateFilter = {
+        status: { notIn: [CandidateStatus.PROBATION, CandidateStatus.EMPLOYED, CandidateStatus.REJECTED] },
+      };
     }
 
     // 定义需要统计的类别
