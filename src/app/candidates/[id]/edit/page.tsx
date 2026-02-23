@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -52,6 +52,14 @@ interface Candidate {
   tags: { id: string }[];
 }
 
+interface Attachment {
+  id: string;
+  name: string;
+  fileName: string | null;
+  fileUrl: string | null;
+  createdAt: string;
+}
+
 export default function EditCandidatePage() {
   const router = useRouter();
   const params = useParams();
@@ -67,6 +75,11 @@ export default function EditCandidatePage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachUploading, setAttachUploading] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [deletingAttachId, setDeletingAttachId] = useState<string | null>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -84,26 +97,36 @@ export default function EditCandidatePage() {
     },
   });
 
+  const fetchAttachments = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/candidates/${candidateId}/certificates`);
+      if (res.ok) {
+        const data = await res.json();
+        setAttachments(data);
+      }
+    } catch (err) {
+      console.error('获取附件列表错误:', err);
+    }
+  }, [candidateId]);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 获取标签列表
-        const tagsResponse = await fetch('/api/tags');
+        // 并行获取标签列表、候选人数据、附件列表
+        const [tagsResponse, candidateResponse] = await Promise.all([
+          fetch('/api/tags'),
+          fetch(`/api/candidates/${candidateId}`),
+        ]);
         if (!tagsResponse.ok) throw new Error('获取标签失败');
         const tagsData = await tagsResponse.json();
         setAvailableTags(tagsData);
 
-        // 获取候选人数据
-        const candidateResponse = await fetch(`/api/candidates/${candidateId}`);
         if (!candidateResponse.ok) {
-          if (candidateResponse.status === 404) {
-            throw new Error('候选人不存在');
-          }
+          if (candidateResponse.status === 404) throw new Error('候选人不存在');
           throw new Error('获取候选人失败');
         }
         const candidateData: Candidate = await candidateResponse.json();
 
-        // 填充表单
         form.reset({
           name: candidateData.name || '',
           email: candidateData.email || '',
@@ -117,11 +140,11 @@ export default function EditCandidatePage() {
           status: candidateData.status as any,
         });
 
-        // 设置已选标签
         setSelectedTags(candidateData.tags?.map((t) => t.id) || []);
-        // 设置简历URL
         setResumeUrl(candidateData.resumeUrl || null);
         setResumeFileName(candidateData.resumeFileName || null);
+
+        await fetchAttachments();
       } catch (err) {
         console.error('获取数据错误:', err);
         setError(err instanceof Error ? err.message : '获取数据失败');
@@ -131,7 +154,72 @@ export default function EditCandidatePage() {
     };
 
     fetchData();
-  }, [candidateId, form]);
+  }, [candidateId, form, fetchAttachments]);
+
+  const handleAttachUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const allowedMimes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    const allowedExts = ['pdf', 'docx'];
+
+    setAttachUploading(true);
+    setAttachError(null);
+
+    const errors: string[] = [];
+    for (const file of Array.from(files)) {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const isAllowed = allowedMimes.includes(file.type) || allowedExts.includes(ext);
+      if (!isAllowed) {
+        errors.push(`${file.name}: 只支持 PDF 和 DOCX 格式`);
+        continue;
+      }
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`/api/candidates/${candidateId}/certificates`, {
+          method: 'POST',
+          body: formData,
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          errors.push(`${file.name}: ${data.error || '上传失败'}`);
+        }
+      } catch {
+        errors.push(`${file.name}: 上传失败`);
+      }
+    }
+
+    if (errors.length > 0) setAttachError(errors.join('；'));
+    await fetchAttachments();
+    setAttachUploading(false);
+    if (attachInputRef.current) attachInputRef.current.value = '';
+  };
+
+  const handleAttachDelete = async (id: string, name: string) => {
+    if (!confirm(`确定要删除附件「${name}」吗？`)) return;
+    setDeletingAttachId(id);
+    try {
+      await fetch(`/api/candidates/${candidateId}/certificates?certificateId=${id}`, {
+        method: 'DELETE',
+      });
+      await fetchAttachments();
+    } catch (err) {
+      console.error('删除附件错误:', err);
+    } finally {
+      setDeletingAttachId(null);
+    }
+  };
+
+  const getAttachFileType = (att: Attachment): 'pdf' | 'docx' | null => {
+    const name = att.fileName || att.name || '';
+    if (name.toLowerCase().endsWith('.pdf')) return 'pdf';
+    if (name.toLowerCase().endsWith('.docx')) return 'docx';
+    return null;
+  };
 
   const handleTagToggle = (tagId: string) => {
     setSelectedTags((prev) =>
@@ -572,6 +660,100 @@ export default function EditCandidatePage() {
 
               {uploadError && (
                 <p className="mt-2 text-sm text-red-600">{uploadError}</p>
+              )}
+            </div>
+
+            {/* 附件上传 */}
+            <div>
+              <h3 className="text-lg font-medium mb-2">附件文件</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                支持上传多个 PDF（可预览）或 DOCX（可下载）格式的附件
+              </p>
+
+              {attachments.length > 0 && (
+                <div className="mb-4 space-y-2">
+                  {attachments.map((att) => {
+                    const fileType = getAttachFileType(att);
+                    const displayName = att.fileName || att.name;
+                    const fileUrl = att.fileUrl
+                      ? `/api/resume/file/${encodeURIComponent(att.fileUrl)}`
+                      : null;
+                    return (
+                      <div
+                        key={att.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-md"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <svg className="h-5 w-5 flex-shrink-0 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span className="text-sm font-medium truncate">{displayName}</span>
+                          {fileType && (
+                            <span className={`flex-shrink-0 text-xs px-2 py-0.5 rounded-full ${fileType === 'pdf' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                              {fileType.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                          {fileUrl && fileType === 'pdf' && (
+                            <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
+                              预览
+                            </a>
+                          )}
+                          {fileUrl && fileType === 'docx' && (
+                            <a href={fileUrl} download={att.fileName || att.name} className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
+                              下载
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleAttachDelete(att.id, displayName)}
+                            disabled={deletingAttachId === att.id}
+                            className="text-sm text-red-500 hover:text-red-700 hover:underline"
+                          >
+                            {deletingAttachId === att.id ? '删除中...' : '删除'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex items-center gap-4">
+                <input
+                  ref={attachInputRef}
+                  type="file"
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  multiple
+                  onChange={handleAttachUpload}
+                  className="hidden"
+                  id="attach-upload"
+                />
+                <button
+                  type="button"
+                  onClick={() => attachInputRef.current?.click()}
+                  disabled={attachUploading}
+                  className={`px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-md text-sm ${
+                    attachUploading
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer'
+                  }`}
+                >
+                  {attachUploading ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      上传中...
+                    </span>
+                  ) : '上传附件（可多选）'}
+                </button>
+              </div>
+
+              {attachError && (
+                <p className="mt-2 text-sm text-red-600">{attachError}</p>
               )}
             </div>
 

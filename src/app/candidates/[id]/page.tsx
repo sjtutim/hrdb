@@ -66,7 +66,7 @@ interface Candidate {
   createdAt: string;
   updatedAt: string;
   tags: { id: string; name: string; category: string }[];
-  certificates: { id: string; name: string; description: string | null }[];
+  certificates: { id: string; name: string; fileName: string | null; fileUrl: string | null; description: string | null }[];
   recruiter: { id: string; name: string; email: string } | null;
   interviews: {
     id: string;
@@ -1173,22 +1173,59 @@ export default function CandidateDetailPage({ params }: { params: { id: string }
             </Card>
           )}
 
-          {/* 证书 */}
+          {/* 附件 */}
           {candidate.certificates && candidate.certificates.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>证书</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  附件
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {candidate.certificates.map((cert) => (
-                    <div key={cert.id} className="p-3 border rounded-lg">
-                      <p className="font-medium">{cert.name}</p>
-                      {cert.description && (
-                        <p className="text-sm text-muted-foreground">{cert.description}</p>
-                      )}
-                    </div>
-                  ))}
+                  {candidate.certificates.map((cert) => {
+                    const displayName = cert.fileName || cert.name;
+                    const isPdf = displayName.toLowerCase().endsWith('.pdf');
+                    const isDocx = displayName.toLowerCase().endsWith('.docx');
+                    const fileUrl = cert.fileUrl
+                      ? `/api/resume/file/${encodeURIComponent(cert.fileUrl)}`
+                      : null;
+                    return (
+                      <div key={cert.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                          <span className="text-sm font-medium truncate" title={displayName}>
+                            {displayName}
+                          </span>
+                          {isPdf && (
+                            <Badge className="flex-shrink-0 bg-red-100 text-red-700 text-xs">PDF</Badge>
+                          )}
+                          {isDocx && (
+                            <Badge className="flex-shrink-0 bg-blue-100 text-blue-700 text-xs">DOCX</Badge>
+                          )}
+                        </div>
+                        {fileUrl && (
+                          <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                            {isPdf && (
+                              <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
+                                <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  预览
+                                </a>
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
+                              <a href={fileUrl} download={cert.fileName || cert.name}>
+                                <Download className="h-3 w-3 mr-1" />
+                                下载
+                              </a>
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
