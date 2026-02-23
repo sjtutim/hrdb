@@ -173,12 +173,10 @@ export async function GET(request: Request) {
       distinct: ['department'],
     });
 
-    const allDepartments = [
-      ...new Set([
-        ...employeeDepartments.map(d => d.department),
-        ...candidateDepartments.map(d => d.department!),
-      ]),
-    ].filter(d => d && d !== '-').sort();
+    const allDepartments = Array.from(new Set([
+      ...employeeDepartments.map(d => d.department),
+      ...candidateDepartments.map(d => d.department!),
+    ])).filter(d => d && d !== '-').sort();
 
     return NextResponse.json({
       employees: allEmployees,
