@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
-import { uploadFile } from '@/lib/minio';
+import { uploadFile, getFileUrl, BUCKET_NAME } from '@/lib/minio';
 
 const prisma = new PrismaClient();
 
@@ -58,7 +58,27 @@ export async function GET(
       orderBy: { date: 'desc' },
     });
 
-    return NextResponse.json(reviews);
+    // 转换为预签名URL
+    const reviewsWithUrls = await Promise.all(
+      reviews.map(async (review) => {
+        if (review.attachmentUrl) {
+          try {
+            const bucketMarker = `/${BUCKET_NAME}/`;
+            const splitParts = review.attachmentUrl.split(bucketMarker);
+            if (splitParts.length > 1) {
+              const objectName = splitParts.slice(1).join(bucketMarker);
+              const presignedUrl = await getFileUrl(objectName);
+              return { ...review, attachmentUrl: presignedUrl };
+            }
+          } catch (e) {
+            console.error('生成预签名URL失败:', e);
+          }
+        }
+        return review;
+      })
+    );
+
+    return NextResponse.json(reviewsWithUrls);
   } catch (error) {
     console.error('获取考核记录失败:', error);
     return NextResponse.json({ error: '获取考核记录失败' }, { status: 500 });
@@ -181,6 +201,21 @@ export async function POST(
       data: { currentScore: scoreNum },
     });
 
+    // 转换为预签名URL
+    if (review.attachmentUrl) {
+      try {
+        const bucketMarker = `/${BUCKET_NAME}/`;
+        const splitParts = review.attachmentUrl.split(bucketMarker);
+        if (splitParts.length > 1) {
+          const objectName = splitParts.slice(1).join(bucketMarker);
+          const presignedUrl = await getFileUrl(objectName);
+          (review as any).attachmentUrl = presignedUrl;
+        }
+      } catch (e) {
+        console.error('生成预签名URL失败:', e);
+      }
+    }
+
     return NextResponse.json(review, { status: 201 });
   } catch (error) {
     console.error('创建考核记录失败:', error);
@@ -257,6 +292,21 @@ export async function PATCH(
         where: { id: result.id },
         data: { currentScore: latestReview.score },
       });
+    }
+
+    // 转换为预签名URL
+    if (updated.attachmentUrl) {
+      try {
+        const bucketMarker = `/${BUCKET_NAME}/`;
+        const splitParts = updated.attachmentUrl.split(bucketMarker);
+        if (splitParts.length > 1) {
+          const objectName = splitParts.slice(1).join(bucketMarker);
+          const presignedUrl = await getFileUrl(objectName);
+          (updated as any).attachmentUrl = presignedUrl;
+        }
+      } catch (e) {
+        console.error('生成预签名URL失败:', e);
+      }
     }
 
     return NextResponse.json(updated);
